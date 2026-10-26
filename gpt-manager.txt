@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GPT Manager v0.11.2
-// @name:zh-CN   GPT Manager v0.11.2
+// @name         GPT Manager v0.11.3
+// @name:zh-CN   GPT Manager v0.11.3
 // @namespace    http://tampermonkey.net/
-// @version      0.11.2
+// @version      0.11.3
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
@@ -329,7 +329,7 @@
 
         getConversations() {
             const links = Array.from(document.querySelectorAll(`nav ${CONVERSATION_LINK_SELECTOR}`))
-                .filter(link => !link.closest('#cbm-filter-results') && getConversationIdFromHref(link.getAttribute('href')));
+                .filter(link => !link.closest('#cbm-filter-results,#gpt-manager-groups') && getConversationIdFromHref(link.getAttribute('href')));
             const seen = new Set();
             return links.filter(link => {
                 const id = getConversationIdFromHref(link.getAttribute('href'));
@@ -747,7 +747,7 @@
             if(this.reportPanel?.isConnected){this.refresh();return;}
             const el=document.createElement('div');el.id='cbm-diag-modal';
             el.innerHTML=`
-                <div class="cbm-diag-top"><h2>GPT Manager v0.11.2 | Diagnóstico</h2>
+                <div class="cbm-diag-top"><h2>GPT Manager v0.11.3 | Diagnóstico</h2>
                     <button type="button" id="cbm-diag-close" aria-label="Fechar diagnóstico">Fechar ×</button></div>
                 <p>Abra a janela lateral do TXT, tente copiar o texto e, após a falha, clique em Atualizar.
                    O relatório contém apenas estruturas e contagens, não o texto ou dados de autenticação.</p>
@@ -1584,8 +1584,19 @@
 
         injectPanel() {
             if (document.getElementById('bulk-controls-panel')) return;
-            const header = this.isChatGPT ? this.adapter.getSidebarHeader() : document.querySelector('.chat-history-list');
-            if (!header) return;
+            // Compatível com "Recentes" recolhido ou sem conversas visíveis.
+            // Não depender de um link /c/ para posicionar a caixa de ferramentas.
+            const historyHeader = this.isChatGPT ? this.adapter.getSidebarHeader() : null;
+            const alternateHeader = this.isChatGPT && !historyHeader
+                ? (this.outerHeadingRow(this.findSidebarHeading(/^(?:(?:[.]{3}|…)\s*)?(?:Explorar|Explore)$/i)) ||
+                   this.outerHeadingRow(this.findSidebarHeading(/^(?:Fixados|Pinned)$/i)))
+                : null;
+            const header = this.isChatGPT ? (historyHeader || alternateHeader)
+                : document.querySelector('.chat-history-list');
+            if (!header) {
+                window.__cbmDiagnostics?.add('painel-aguardando-menu',{semConversasVisiveis:this.isChatGPT},true);
+                return;
+            }
             const panel=document.createElement('div');
             panel.id='bulk-controls-panel';
             panel.className=this.isChatGPT ? 'bulk-controls-panel-chatgpt' : 'bulk-controls-panel-gemini';
@@ -1653,7 +1664,11 @@
                 statusRow.appendChild(driveBtn);
             }
             panel.append(statusRow);
-            if(this.isChatGPT && header.parentElement) {
+            if(this.isChatGPT && alternateHeader && !historyHeader) {
+                // A linha Explorar pertence ao fluxo vertical do menu.
+                // Inserir ANTES da linha, nunca dentro do botão/heading.
+                alternateHeader.before(panel);
+            } else if(this.isChatGPT && header.parentElement) {
                 const direction=getComputedStyle(header.parentElement).flexDirection;
                 if(direction==='row'||direction==='row-reverse')header.insertBefore(panel,header.firstChild);
                 else header.parentElement.insertBefore(panel,header);
@@ -3285,16 +3300,38 @@
         }
 
         getSidebar() {
-            const link=document.querySelector('nav a[href*="/c/"]');
-            if(!link) return document.querySelector('aside nav')||null;
-            let candidate=link.closest('nav');
-            for(let p=candidate,n=0;p&&n<8;p=p.parentElement,n++){
-                const r=p.getBoundingClientRect();
-                if(r.width>Math.min(470,innerWidth*.63)) break;
-                const text=this.normalize(p.textContent);
-                if(this.toolLabels.filter(x=>text.includes(x)).length>=3 && /Explorar|Explore/i.test(text))return p;
+            // Detectar a barra lateral pelos controles estáveis, não por links
+            // de "Recentes": quando ela é recolhida, esses links somem do DOM.
+            const history=document.querySelector('nav a[href*="/c/"]:not(#gpt-manager-groups a)');
+            const historyNav=history?.closest('nav')||null;
+            const candidateIsSidebar=el=>{
+                if(!el?.isConnected)return false;
+                const rect=el.getBoundingClientRect();
+                if(rect.width<=0||rect.width>Math.min(490,innerWidth*.72))return false;
+                const t=this.normalize(el.textContent);
+                return /Explorar|Explore/i.test(t) &&
+                    this.toolLabels.filter(label=>t.includes(label)).length>=3;
+            };
+            if(historyNav){
+                for(let p=historyNav,n=0;p&&n<9;p=p.parentElement,n++){
+                    if(candidateIsSidebar(p))return p;
+                    if(p.tagName==='BODY')break;
+                }
             }
-            return candidate;
+            const exploreItems=Array.from(document.querySelectorAll(
+                'nav a,nav button,aside a,aside button,[role="navigation"] a,[role="navigation"] button'))
+                .filter(el=>this.isVisible(el)&&
+                    /^(?:(?:[.]{3}|…)\s*)?(?:Explorar|Explore)$/i.test(this.normalize(el.textContent)));
+            for(const explore of exploreItems){
+                for(let p=explore,n=0;p&&n<12;p=p.parentElement,n++){
+                    if(candidateIsSidebar(p))return p;
+                    if(p.tagName==='BODY')break;
+                }
+            }
+            return Array.from(document.querySelectorAll('nav,aside,[role="navigation"]'))
+                .filter(candidateIsSidebar)
+                .sort((a,b)=>a.querySelectorAll('*').length-b.querySelectorAll('*').length)[0]
+                || historyNav || null;
         }
 
         compactRows() {
@@ -3345,7 +3382,7 @@
                 if(!nav)return;
                 this.compactHeadings(nav);
                 if(!Array.from(nav.querySelectorAll('a,button,[role="button"]'))
-                    .some(el=>/^(?:\.\.\.\s*)?(Explorar|Explore)$/.test(this.normalize(el.textContent))))return;
+                    .some(el=>/^(?:(?:[.]{3}|…)\s*)?(?:Explorar|Explore)$/i.test(this.normalize(el.textContent))))return;
                 for(const label of this.toolLabels){
                     const old=this.toolElements.get(label);
                     const row=(old&&old.isConnected)?old:this.findTool(nav,label);

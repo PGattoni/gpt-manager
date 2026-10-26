@@ -15,7 +15,7 @@ Abra **https://pgattoni.github.io/gpt-manager/instalar.html** e clique em **Inst
 
 ## Versão publicada
 
-**v0.11.2:** conexão à conta Google por página auxiliar OAuth, cópia e sincronização em `appDataFolder`, união inicial de registros, importação/exportação JSON e sincronização automática opcional.
+**v0.11.3:** conexão à conta Google por página auxiliar OAuth, cópia e sincronização em `appDataFolder`, união inicial de registros, importação/exportação JSON e sincronização automática opcional.
 
 ## Atualização após a renomeação do repositório
 
@@ -51,6 +51,10 @@ A seção **Grupos** aparece logo abaixo de Explorar. Clique em **+** para criar
 
 A IA para sugerir grupos e tags está planejada para a próxima etapa; não está incluída nesta versão. Faça backup JSON antes de atualizar.
 
-### Interface v0.11.2
+### Interface v0.11.3
 
 O título **Grupos** acompanha a tipografia e o alinhamento da seção nativa **Fixados**. O cabeçalho não exibe contagem e não há frase de ajuda quando a lista está vazia. Criação e edição usam uma janela integrada, com campo de nome e paleta visual de cores. A exclusão exige confirmação no mesmo diálogo e não elimina conversas.
+
+### Correção v0.11.3
+
+A caixa de ferramentas e a organização de Explorar funcionam mesmo quando **Recentes** está recolhido. Links da seção **Grupos** não são confundidos com os links nativos do histórico ao escolher o ponto de inserção do painel.
