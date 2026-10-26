@@ -4,19 +4,21 @@ GPT Manager é uma personalização do [AI Chat Bulk Manager original](https://g
 
 ## Instalar
 
-Abra **https://pgattoni.github.io/aicbm/** e clique em **Instalar ou atualizar no Tampermonkey**.
+Abra **https://pgattoni.github.io/gpt-manager/** e clique em **Instalar ou atualizar no Tampermonkey**.
 
-- Script: [gpt-manager.user.js](https://pgattoni.github.io/aicbm/gpt-manager.user.js)
-- Metadados para atualização: [gpt-manager.meta.js](https://pgattoni.github.io/aicbm/gpt-manager.meta.js)
-- Código em TXT: [gpt-manager.txt](https://pgattoni.github.io/aicbm/gpt-manager.txt)
+- Script: [gpt-manager.user.js](https://pgattoni.github.io/gpt-manager/gpt-manager.user.js)
+- Metadados para atualização: [gpt-manager.meta.js](https://pgattoni.github.io/gpt-manager/gpt-manager.meta.js)
+- Código em TXT: [gpt-manager.txt](https://pgattoni.github.io/gpt-manager/gpt-manager.txt)
 
 ## Versão publicada
 
-**v0.9.3:** novo nome GPT Manager no Tampermonkey, na página de instalação e nos arquivos publicados. A versão v0.9.2 e os endereços antigos seguem disponíveis por compatibilidade.
+**v0.9.4:** corrige todos os links internos após renomear o repositório para `gpt-manager`, preservando os recursos da v0.9.3.
 
-## Compatibilidade
+## Atualização após a renomeação do repositório
 
-Os arquivos legados `aicbm.user.js`, `aicbm.meta.js` e `aicbm.txt` continuam apontando para a versão atual, para preservar instalações anteriores. O repositório ainda tem o endereço técnico `PGattoni/aicbm`.
+O repositório foi renomeado de `aicbm` para `gpt-manager`. O novo endereço oficial é **https://pgattoni.github.io/gpt-manager/**.
+
+As cópias legadas `aicbm.user.js`, `aicbm.meta.js` e `aicbm.txt` permanecem disponíveis dentro **deste repositório** no novo endereço, mas os links do domínio Pages antigo não têm redirecionamento garantido. Quem instalou o script pelo antigo endereço deverá reinstalá-lo pelo novo, desativando a cópia anterior no Tampermonkey.
 
 ## Atenção
 

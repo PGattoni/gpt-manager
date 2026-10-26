@@ -1,13 +1,13 @@
 // ==UserScript==
-// @name         GPT Manager v0.9.3
-// @name:zh-CN   GPT Manager v0.9.3
+// @name         GPT Manager v0.9.4
+// @name:zh-CN   GPT Manager v0.9.4
 // @namespace    http://tampermonkey.net/
-// @version      0.9.3
+// @version      0.9.4
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
-// @homepageURL  https://github.com/PGattoni/aicbm
-// @supportURL   https://github.com/PGattoni/aicbm/issues
+// @homepageURL  https://github.com/PGattoni/gpt-manager
+// @supportURL   https://github.com/PGattoni/gpt-manager/issues
 // @match        https://chatgpt.com/*
 // @match        https://gemini.google.com/*
 // @match        https://*.oaiusercontent.com/*
@@ -20,8 +20,8 @@
 // @grant        GM_setValue
 // @grant        unsafeWindow
 // @connect      chatgpt.com
-// @updateURL    https://pgattoni.github.io/aicbm/gpt-manager.meta.js
-// @downloadURL  https://pgattoni.github.io/aicbm/gpt-manager.user.js
+// @updateURL    https://pgattoni.github.io/gpt-manager/gpt-manager.meta.js
+// @downloadURL  https://pgattoni.github.io/gpt-manager/gpt-manager.user.js
 // @license      MIT
 // ==/UserScript==
 
@@ -723,7 +723,7 @@
         }
         report() {
             const snap=this.snapshot();
-            return 'GPT MANAGER - DIAGNÓSTICO v0.9.3\n'+
+            return 'GPT MANAGER - DIAGNÓSTICO v0.9.4\n'+
                 'Sem conteúdo de conversas, tokens, nomes de arquivos ou URLs.\n\n'+
                 '[AMBIENTE E PRÉVIA]\n'+JSON.stringify(snap,null,2)+'\n\n'+
                 '[EVENTOS RECENTES]\n'+this.events.map(e=>JSON.stringify(e)).join('\n')+'\n';
@@ -746,7 +746,7 @@
             if(this.reportPanel?.isConnected){this.refresh();return;}
             const el=document.createElement('div');el.id='cbm-diag-modal';
             el.innerHTML=`
-                <div class="cbm-diag-top"><h2>GPT Manager v0.9.3 | Diagnóstico</h2>
+                <div class="cbm-diag-top"><h2>GPT Manager v0.9.4 | Diagnóstico</h2>
                     <button type="button" id="cbm-diag-close" aria-label="Fechar diagnóstico">Fechar ×</button></div>
                 <p>Abra a janela lateral do TXT, tente copiar o texto e, após a falha, clique em Atualizar.
                    O relatório contém apenas estruturas e contagens, não o texto ou dados de autenticação.</p>
