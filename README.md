@@ -4,7 +4,10 @@ GPT Manager é uma personalização do [AI Chat Bulk Manager original](https://g
 
 ## Instalar
 
-Abra **https://pgattoni.github.io/gpt-manager/** e clique em **Instalar ou atualizar no Tampermonkey**.
+**Página permanente de instalação:** https://pgattoni.github.io/gpt-manager/instalar.html
+
+
+Abra **https://pgattoni.github.io/gpt-manager/instalar.html** e clique em **Instalar ou atualizar no Tampermonkey**.
 
 - Script: [gpt-manager.user.js](https://pgattoni.github.io/gpt-manager/gpt-manager.user.js)
 - Metadados para atualização: [gpt-manager.meta.js](https://pgattoni.github.io/gpt-manager/gpt-manager.meta.js)
