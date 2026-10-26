@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GPT Manager v0.9.4
-// @name:zh-CN   GPT Manager v0.9.4
+// @name         GPT Manager v0.10.0
+// @name:zh-CN   GPT Manager v0.10.0
 // @namespace    http://tampermonkey.net/
-// @version      0.9.4
+// @version      0.10.0
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
@@ -20,6 +20,7 @@
 // @grant        GM_setValue
 // @grant        unsafeWindow
 // @connect      chatgpt.com
+// @connect      www.googleapis.com
 // @updateURL    https://pgattoni.github.io/gpt-manager/gpt-manager.meta.js
 // @downloadURL  https://pgattoni.github.io/gpt-manager/gpt-manager.user.js
 // @license      MIT

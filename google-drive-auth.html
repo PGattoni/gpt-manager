@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPT Manager | Conectar Google Drive</title><meta name="referrer" content="no-referrer">
+<style>body{margin:0;background:#f5f7fa;color:#17212d;font:16px/1.55 system-ui,Arial,sans-serif}.box{max-width:440px;margin:9vh auto 0;padding:26px;background:white;border:1px solid #dce0e6;border-radius:16px;box-shadow:0 4px 24px #11223312}h1{font-size:24px;margin-top:0}button{border:0;border-radius:9px;padding:12px 16px;background:#182c43;color:white;font:inherit;cursor:pointer}button:disabled{opacity:.5;cursor:default}#status{font-size:14px;color:#485566}small{color:#66727e}</style>
+<script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<body><main class="box"><h1>GPT Manager</h1><p>Autorize a sincronização de tags, cores e proteções na pasta privada de dados de aplicativos do Google Drive.</p>
+<p><button id="authorize" disabled>Autorizar Google Drive</button></p><p id="status">Carregando a autenticação do Google…</p>
+<small>Não precisamos de acesso geral aos arquivos do Drive. Esta página não armazena tokens ou o conteúdo das suas conversas.</small></main>
+<script>
+(function(){
+ 'use strict';
+ const args=new URLSearchParams(location.hash.slice(1));
+ const nonce=args.get('nonce')||'';
+ const sourceOrigin=args.get('origin')||'';
+ history.replaceState(null,'',location.pathname);
+ const status=document.getElementById('status');
+ const btn=document.getElementById('authorize');
+ const scope='https://www.googleapis.com/auth/drive.appdata';
+ if(!/^[0-9a-f]{48}$/i.test(nonce)||sourceOrigin!=='https://chatgpt.com'||!window.opener){
+   status.textContent='Abra esta página pelo botão Drive do GPT Manager no ChatGPT.';return;
+ }
+ const connect=()=>{
+   if(!(window.google&&google.accounts&&google.accounts.oauth2)){
+     status.textContent='Não foi possível carregar Google Identity Services.';return;
+   }
+   btn.disabled=false;status.textContent='Clique em Autorizar Google Drive para prosseguir.';
+   btn.addEventListener('click',()=>{
+     btn.disabled=true;status.textContent='Aguardando autorização no Google…';
+     try{
+       const client=google.accounts.oauth2.initTokenClient({
+         client_id:'692049135741-lrc0kvtvkp0tj54ul29pil8u1908a1g2.apps.googleusercontent.com',
+         scope,
+         callback:response=>{
+           if(response&&response.access_token&&
+              google.accounts.oauth2.hasGrantedAllScopes(response,scope)){
+             window.opener.postMessage({
+               type:'GPT_MANAGER_DRIVE_AUTH_V1',nonce,token:response.access_token,
+               expiresIn:Number(response.expires_in)||3600
+             },sourceOrigin);
+             status.textContent='Autorizado. Volte à janela do ChatGPT.';
+             setTimeout(()=>window.close(),800);
+           }else{
+             status.textContent='Autorização não concluída. Tente novamente.';
+             btn.disabled=false;
+           }
+         },
+         error_callback:err=>{
+           status.textContent='A janela de autorização foi interrompida ('+(err&&err.type||'erro')+').';
+           btn.disabled=false;
+         }
+       });
+       client.requestAccessToken({prompt:'consent'});
+     }catch(e){status.textContent='Erro ao abrir autorização. Verifique bloqueadores de popups.';btn.disabled=false;}
+   });
+ };
+ const tick=()=>window.google&&google.accounts&&google.accounts.oauth2?connect():setTimeout(tick,200);
+ tick();
+})();
+</script></body></html>

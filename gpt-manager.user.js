@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GPT Manager v0.9.4
-// @name:zh-CN   GPT Manager v0.9.4
+// @name         GPT Manager v0.10.0
+// @name:zh-CN   GPT Manager v0.10.0
 // @namespace    http://tampermonkey.net/
-// @version      0.9.4
+// @version      0.10.0
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
@@ -20,6 +20,7 @@
 // @grant        GM_setValue
 // @grant        unsafeWindow
 // @connect      chatgpt.com
+// @connect      www.googleapis.com
 // @updateURL    https://pgattoni.github.io/gpt-manager/gpt-manager.meta.js
 // @downloadURL  https://pgattoni.github.io/gpt-manager/gpt-manager.user.js
 // @license      MIT
@@ -723,7 +724,7 @@
         }
         report() {
             const snap=this.snapshot();
-            return 'GPT MANAGER - DIAGNÓSTICO v0.9.4\n'+
+            return 'GPT MANAGER - DIAGNÓSTICO v0.10.0\n'+
                 'Sem conteúdo de conversas, tokens, nomes de arquivos ou URLs.\n\n'+
                 '[AMBIENTE E PRÉVIA]\n'+JSON.stringify(snap,null,2)+'\n\n'+
                 '[EVENTOS RECENTES]\n'+this.events.map(e=>JSON.stringify(e)).join('\n')+'\n';
@@ -746,7 +747,7 @@
             if(this.reportPanel?.isConnected){this.refresh();return;}
             const el=document.createElement('div');el.id='cbm-diag-modal';
             el.innerHTML=`
-                <div class="cbm-diag-top"><h2>GPT Manager v0.9.4 | Diagnóstico</h2>
+                <div class="cbm-diag-top"><h2>GPT Manager v0.10.0 | Diagnóstico</h2>
                     <button type="button" id="cbm-diag-close" aria-label="Fechar diagnóstico">Fechar ×</button></div>
                 <p>Abra a janela lateral do TXT, tente copiar o texto e, após a falha, clique em Atualizar.
                    O relatório contém apenas estruturas e contagens, não o texto ou dados de autenticação.</p>
@@ -794,22 +795,328 @@
             const existing=this.get(id);
             const tags=Array.isArray(existing.tags)?existing.tags:[];
             const color=existing.color||'';
-            if(!value && !tags.length && !color)delete this.data[id];
-            else this.data[id]={...existing,tags,color,protected:Boolean(value)};
+            this.data[id]={...existing,tags,color,protected:Boolean(value),updatedAt:Date.now(),deleted:!value&&!tags.length&&!color};
             this.save();
         }
         set(id,tags,color){
             const unique=[...new Set(tags.map(x=>String(x).trim()).filter(Boolean))].slice(0,30);
             const wasProtected=this.isProtected(id);
-            if(!unique.length&&!color&&!wasProtected)delete this.data[id];
-            else this.data[id]={tags:unique,color,protected:wasProtected};
+            this.data[id]={tags:unique,color,protected:wasProtected,updatedAt:Date.now(),deleted:!unique.length&&!color&&!wasProtected};
             this.save();
         }
-        delete(id){if(this.data[id]){delete this.data[id];this.save();}}
+        delete(id){if(this.data[id]){this.data[id]={tags:[],color:'',protected:false,updatedAt:Date.now(),deleted:true};this.save();}}
         save(){
             try{const payload=JSON.stringify(this.data);
                 localStorage.setItem(this.key,payload);
+                window.dispatchEvent(new Event('gpt-manager-settings-changed'));
             }catch(error){warn('Não foi possível salvar tags e cores',error);}
+        }
+    }
+
+
+    // Sincronização opcional. Sem conteúdo de mensagens, IDs de login, senha,
+    // tokens persistentes ou Client Secret no Drive/GitHub.
+    class GPTManagerDriveSync {
+        constructor(manager) {
+            this.manager=manager;
+            this.clientId='692049135741-lrc0kvtvkp0tj54ul29pil8u1908a1g2.apps.googleusercontent.com';
+            this.oauthOrigin='https://pgattoni.github.io';
+            this.oauthPage='https://pgattoni.github.io/gpt-manager/google-drive-auth.html';
+            this.fileName='gpt-manager-settings-v1.json';
+            this.schema='gpt-manager-sync-v1';
+            this.scope='https://www.googleapis.com/auth/drive.appdata';
+            this.token=null;
+            this.tokenUntil=0;
+            this.fileId=null;
+            this.busy=false;
+            this.suppress=false;
+            this.auto=localStorage.getItem('gpt-manager-drive-auto-v1')==='yes';
+            this.lastMessage='Ainda não conectado ao Google Drive.';
+            this.savedAt='';
+            this.timer=null;
+            window.addEventListener('gpt-manager-settings-changed',()=>{
+                if(this.suppress || !this.auto)return;
+                clearTimeout(this.timer);
+                this.timer=setTimeout(()=>{
+                    if(this.connected())this.syncNow(true).catch(()=>{});
+                    else this.setMessage('Alterações locais pendentes. Reconecte o Google Drive para sincronizar.');
+                },3500);
+            });
+            if(typeof GM_registerMenuCommand==='function'){
+                GM_registerMenuCommand('GPT Manager: sincronização Google Drive',()=>this.showDialog());
+                GM_registerMenuCommand('GPT Manager: sincronizar agora',()=>this.syncNow(false).catch(()=>{}));
+            }
+        }
+        connected(){return !!this.token&&Date.now()<this.tokenUntil-60000;}
+        setMessage(message){this.lastMessage=message;this.updateUI();}
+        updateUI(){
+            const button=document.getElementById('gpt-manager-drive-button');
+            if(button){
+                button.textContent=this.busy?'Drive ⟳':(this.connected()?'Drive ✓':'Drive');
+                button.title=this.lastMessage;
+                button.disabled=this.busy;
+            }
+            const state=document.getElementById('gpt-manager-drive-state');
+            if(state)state.textContent=this.lastMessage;
+            const sync=document.getElementById('gpt-manager-drive-sync-now');
+            if(sync)sync.disabled=this.busy;
+        }
+        async connect(){
+            if(this.connected())return true;
+            const nonce=Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,'0')).join('');
+            const fragment=new URLSearchParams({nonce,origin:location.origin});
+            const win=window.open(this.oauthPage+'#'+fragment.toString(),'gpt-manager-google-auth','width=560,height=700,resizable=yes,scrollbars=yes');
+            if(!win)throw new Error('Popup bloqueado. Autorize popups para chatgpt.com.');
+            this.setMessage('Na janela aberta, clique em Autorizar Google Drive.');
+            return new Promise((resolve,reject)=>{
+                let finished=false;
+                const finish=(error,data)=>{
+                    if(finished)return;
+                    finished=true;window.removeEventListener('message',listener);
+                    clearInterval(watcher);clearTimeout(timeout);
+                    if(error){this.setMessage(error.message);reject(error);}
+                    else{
+                        this.token=data.token;
+                        this.tokenUntil=Date.now()+Math.min(3600,Number(data.expiresIn)||3600)*1000;
+                        this.setMessage('Conta conectada. Escolha Sincronizar agora.');
+                        resolve(true);
+                    }
+                };
+                const listener=event=>{
+                    if(event.origin!==this.oauthOrigin || event.source!==win)return;
+                    const msg=event.data;
+                    if(!msg || msg.type!=='GPT_MANAGER_DRIVE_AUTH_V1' || msg.nonce!==nonce)return;
+                    if(msg.error) return finish(new Error('Google: '+String(msg.error).slice(0,140)));
+                    if(typeof msg.token!=='string'||msg.token.length<30)return finish(new Error('Resposta de autorização inválida.'));
+                    finish(null,msg);
+                };
+                window.addEventListener('message',listener);
+                const watcher=setInterval(()=>{if(win.closed)finish(new Error('Autorização interrompida.'));},1000);
+                const timeout=setTimeout(()=>finish(new Error('Tempo de autorização esgotado.')),180000);
+            });
+        }
+        async api(method,path,data,headers){
+            if(!this.connected())throw new Error('A autorização expirou. Clique em Conectar novamente.');
+            if(typeof GM_xmlhttpRequest!=='function')throw new Error('GM_xmlhttpRequest não está disponível.');
+            const url='https://www.googleapis.com'+path;
+            return new Promise((resolve,reject)=>{
+                GM_xmlhttpRequest({
+                    method,url,
+                    headers:{Authorization:'Bearer '+this.token,...headers},
+                    data:data===undefined?undefined:data,
+                    timeout:30000,
+                    onload:response=>{
+                        const raw=response.responseText||'';
+                        let json=null;
+                        try{json=raw?JSON.parse(raw):null;}catch(_){}
+                        if(response.status>=200&&response.status<300)return resolve(json);
+                        if(response.status===401){this.token=null;this.tokenUntil=0;}
+                        const msg=json&&json.error&&json.error.message?json.error.message:'HTTP '+response.status;
+                        reject(new Error('Google Drive: '+String(msg).slice(0,220)));
+                    },
+                    onerror:()=>reject(new Error('Sem comunicação com o Google Drive.')),
+                    ontimeout:()=>reject(new Error('Tempo de resposta do Google Drive esgotado.'))
+                });
+            });
+        }
+        sanitizeRecord(record){
+            const x=record&&typeof record==='object'&&!Array.isArray(record)?record:{};
+            const tags=[...new Set((Array.isArray(x.tags)?x.tags:[])
+                .filter(a=>typeof a==='string')
+                .map(a=>a.trim().slice(0,80)).filter(Boolean))].slice(0,30);
+            const color=/^#[a-f0-9]{6}$/i.test(x.color||'')?x.color:'';
+            const protectedFlag=x.protected===true;
+            const stamp=Number(x.updatedAt);
+            return {tags,color,protected:protectedFlag,
+                updatedAt:Number.isSafeInteger(stamp)&&stamp>0?stamp:0,
+                deleted:x.deleted===true&&!tags.length&&!color&&!protectedFlag};
+        }
+        cleanRecords(data){
+            if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('Dados de sincronização inválidos.');
+            const result=Object.create(null);
+            let count=0;
+            for(const id of Object.keys(data)){
+                if(!/^[a-f0-9-]{32,48}$/i.test(id))continue;
+                if(++count>20000)throw new Error('Arquivo contém registros demais.');
+                result[id]=this.sanitizeRecord(data[id]);
+            }
+            return result;
+        }
+        merge(local,remote){
+            const merged=Object.create(null);
+            for(const id of new Set([...Object.keys(local),...Object.keys(remote)])){
+                const a=local[id],b=remote[id];
+                if(!a){merged[id]=b;continue;}
+                if(!b){merged[id]=a;continue;}
+                if(a.updatedAt&&b.updatedAt&&a.updatedAt!==b.updatedAt){
+                    merged[id]=a.updatedAt>b.updatedAt?a:b;
+                    continue;
+                }
+                // Compatibilidade com configurações anteriores sem timestamp:
+                // unir tags e manter a proteção; nunca eliminar dados legados
+                // durante a primeira sincronização.
+                if(!a.updatedAt||!b.updatedAt){
+                    merged[id]={tags:[...new Set([...a.tags,...b.tags])].slice(0,30),
+                        color:a.color||b.color,protected:a.protected||b.protected,
+                        updatedAt:Date.now(),deleted:false};
+                }else{
+                    merged[id]=a; // desempate determinístico sem excluir registros
+                }
+            }
+            return merged;
+        }
+        async findRemote(){
+            const query="?spaces=appDataFolder&pageSize=100&fields="+encodeURIComponent('nextPageToken,files(id,name,mimeType,modifiedTime)')+
+                "&q="+encodeURIComponent("name = '"+this.fileName.replace(/'/g,"\\'")+"' and trashed = false");
+            const response=await this.api('GET','/drive/v3/files'+query);
+            const files=Array.isArray(response&&response.files)?response.files:[];
+            files.sort((a,b)=>String(b.modifiedTime||'').localeCompare(String(a.modifiedTime||'')));
+            return files.find(f=>f.name===this.fileName)||null;
+        }
+        async readRemote(file){
+            if(!file)return Object.create(null);
+            const obj=await this.api('GET','/drive/v3/files/'+encodeURIComponent(file.id)+'?alt=media');
+            if(!obj||obj.schema!==this.schema||obj.version!==1)
+                throw new Error('Formato do arquivo remoto não reconhecido. Nenhum dado foi alterado.');
+            return this.cleanRecords(obj.records);
+        }
+        async writeRemote(file,records){
+            const payload=JSON.stringify({schema:this.schema,version:1,
+                updatedAt:new Date().toISOString(),records});
+            if(payload.length>12000000)throw new Error('O backup é grande demais para esta versão.');
+            if(file){
+                return this.api('PATCH','/upload/drive/v3/files/'+encodeURIComponent(file.id)+'?uploadType=media',
+                    payload,{'Content-Type':'application/json;charset=UTF-8'});
+            }
+            const boundary='gptmanager'+Math.random().toString(36).slice(2);
+            const meta=JSON.stringify({name:this.fileName,mimeType:'application/json',parents:['appDataFolder']});
+            const body='--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+meta+
+                '\r\n--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+payload+
+                '\r\n--'+boundary+'--\r\n';
+            return this.api('POST','/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime',
+                body,{'Content-Type':'multipart/related; boundary='+boundary});
+        }
+        async syncNow(silent){
+            if(this.busy){this.setMessage('Já existe uma sincronização em andamento.');return;}
+            if(!this.connected()){
+                if(silent){this.setMessage('Reconecte o Drive para enviar alterações pendentes.');return;}
+                await this.connect();
+            }
+            this.busy=true;
+            this.setMessage('Sincronizando tags, cores e proteções…');
+            try{
+                const local=this.cleanRecords(this.manager.metadata.data);
+                const remoteFile=await this.findRemote();
+                const remote=await this.readRemote(remoteFile);
+                const merged=this.merge(local,remote);
+                await this.writeRemote(remoteFile,merged);
+                // Nunca aplicar dados remotos antes de confirmar que a gravação
+                // conciliada ocorreu com sucesso.
+                this.suppress=true;
+                try{
+                    this.manager.metadata.data=merged;
+                    this.manager.metadata.save();
+                }finally{this.suppress=false;}
+                this.fileId=remoteFile&&remoteFile.id||null;
+                this.savedAt=new Date().toLocaleString('pt-BR');
+                this.manager.updateDecorations();
+                this.manager.refreshSelectedState();
+                if(this.manager.filterActive)this.manager.scheduleRender();
+                this.setMessage('Sincronizado em '+this.savedAt+'. '+Object.keys(merged).length+' registros.');
+            }catch(error){
+                this.setMessage('Falha: '+error.message);
+                throw error;
+            }finally{this.busy=false;this.updateUI();}
+        }
+        exportJSON(){
+            const backup={schema:this.schema,version:1,
+                exportedAt:new Date().toISOString(),records:this.cleanRecords(this.manager.metadata.data)};
+            const url=URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}));
+            const a=document.createElement('a');a.href=url;a.download='gpt-manager-configuracoes.json';
+            document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+            this.setMessage('Arquivo JSON exportado.');
+        }
+        async importJSON(file){
+            if(!file||file.size>12000000)throw new Error('Arquivo inválido ou maior que 12 MB.');
+            const obj=JSON.parse(await file.text());
+            if(!obj||obj.schema!==this.schema||obj.version!==1)throw new Error('JSON incompatível com o GPT Manager.');
+            const imported=this.cleanRecords(obj.records);
+            const local=this.cleanRecords(this.manager.metadata.data);
+            const combined=this.merge(local,imported);
+            this.suppress=true;
+            try{this.manager.metadata.data=combined;this.manager.metadata.save();}
+            finally{this.suppress=false;}
+            this.manager.updateDecorations();this.manager.refreshSelectedState();
+            if(this.manager.filterActive)this.manager.scheduleRender();
+            this.setMessage('Importação concluída. '+Object.keys(combined).length+' registros preservados.');
+        }
+        disconnect(){
+            this.token=null;this.tokenUntil=0;
+            this.auto=false;localStorage.removeItem('gpt-manager-drive-auto-v1');
+            this.setMessage('Drive desconectado neste navegador; configurações locais preservadas.');
+        }
+        showDialog(){
+            document.getElementById('gpt-manager-drive-overlay')?.remove();
+            const overlay=document.createElement('div');
+            overlay.id='gpt-manager-drive-overlay';
+            overlay.style.cssText='position:fixed;inset:0;z-index:2147483600;background:#0008;display:flex;align-items:center;justify-content:center;padding:16px;';
+            const panel=document.createElement('section');
+            panel.style.cssText='width:min(460px,100%);max-height:90vh;overflow:auto;background:#fff;color:#1d232b;padding:22px;border-radius:14px;box-shadow:0 12px 48px #0003;font:14px/1.6 system-ui,Arial,sans-serif;';
+            panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');
+            panel.setAttribute('aria-label','Sincronização Google Drive');
+            const h=document.createElement('h2');h.textContent='GPT Manager · Google Drive';h.style.cssText='margin:0 0 8px;font-size:19px;';
+            const info=document.createElement('p');
+            info.textContent='Sincronize tags, cores e proteções. O conteúdo das mensagens não é enviado ao Drive.';
+            const state=document.createElement('p');state.id='gpt-manager-drive-state';state.textContent=this.lastMessage;
+            state.style.cssText='padding:10px;background:#f3f5f7;border-radius:8px;color:#263548;';
+            const row=document.createElement('div');row.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:12px 0;';
+            const makeButton=(label,fn)=>{
+                const b=document.createElement('button');b.type='button';b.textContent=label;
+                b.style.cssText='border:1px solid #c9d0d8;border-radius:7px;background:#fff;color:#1d232b;padding:8px 11px;cursor:pointer;font:inherit;';
+                b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}
+                    catch(error){this.setMessage('Falha: '+error.message);}
+                    finally{b.disabled=false;this.updateUI();}});
+                row.appendChild(b);return b;
+            };
+            makeButton('Conectar Google',()=>this.connect());
+            const sync=makeButton('Sincronizar agora',()=>this.syncNow(false));
+            sync.id='gpt-manager-drive-sync-now';
+            makeButton('Exportar JSON',()=>this.exportJSON());
+            const chooser=document.createElement('input');chooser.type='file';chooser.accept='.json,application/json';chooser.hidden=true;
+            chooser.addEventListener('change',async()=>{
+                try{if(chooser.files[0])await this.importJSON(chooser.files[0]);}
+                catch(error){this.setMessage('Importação: '+error.message);}
+                chooser.value='';
+            });
+            makeButton('Importar JSON',()=>chooser.click());
+            const label=document.createElement('label');label.style.cssText='display:flex;gap:8px;align-items:flex-start;margin:12px 0;';
+            const auto=document.createElement('input');auto.type='checkbox';auto.checked=this.auto;
+            auto.addEventListener('change',async()=>{
+                if(auto.checked){
+                    try{await this.syncNow(false);this.auto=true;
+                        localStorage.setItem('gpt-manager-drive-auto-v1','yes');
+                        this.setMessage('Sincronização automática ativada. Reautorize o Drive quando a sessão expirar.');
+                    }catch(error){auto.checked=false;this.auto=false;localStorage.removeItem('gpt-manager-drive-auto-v1');}
+                }else{
+                    this.auto=false;localStorage.removeItem('gpt-manager-drive-auto-v1');
+                    this.setMessage('Sincronização automática desativada.');
+                }
+            });
+            label.append(auto,document.createTextNode('Sincronizar automaticamente após alterações (exige sessão Google válida).'));
+            const disclaimer=document.createElement('p');
+            disclaimer.style.cssText='font-size:12px;color:#65717c;';
+            disclaimer.textContent='Na primeira sincronização, os registros são conciliados. Em conflitos antigos, as tags são unidas e a proteção é preservada. O acesso Google expira e pode exigir nova autorização.';
+            const bottom=document.createElement('div');bottom.style.cssText='display:flex;gap:8px;justify-content:flex-end;margin-top:12px;';
+            const close=document.createElement('button');close.textContent='Fechar';close.type='button';
+            const disconnect=document.createElement('button');disconnect.textContent='Desconectar Drive';disconnect.type='button';
+            for(const b of [close,disconnect])b.style.cssText='padding:7px 10px;border:1px solid #c9d0d8;background:#fff;border-radius:7px;color:#17212d;cursor:pointer;';
+            const doClose=()=>overlay.remove();
+            close.addEventListener('click',doClose);
+            disconnect.addEventListener('click',()=>{this.disconnect();auto.checked=false;});
+            bottom.append(disconnect,close);
+            panel.append(h,info,state,row,chooser,label,disclaimer,bottom);
+            overlay.append(panel);overlay.addEventListener('click',event=>{if(event.target===overlay)doClose();});
+            document.body.append(overlay);
         }
     }
 
@@ -837,6 +1144,7 @@
             this.filterActive = false;
             this.filterModes = new Set(['name']);
             this.metadata = new CBMConversationMetadata();
+            this.drive = this.isChatGPT ? new GPTManagerDriveSync(this) : null;
             this.contentCache = new Map(); // Só memória da aba; nunca persiste mensagens.
             this.contentMatched = new Set();
             this.contentSearchJob = 0;
@@ -1041,6 +1349,15 @@
                 }
                 panel.append(modes);
             }
+            if(this.drive){
+                const driveBtn=document.createElement('button');
+                driveBtn.type='button';driveBtn.id='gpt-manager-drive-button';
+                driveBtn.className='bulk-btn';driveBtn.textContent='Drive';
+                driveBtn.title='Sincronizar tags, cores e proteções';
+                driveBtn.style.cssText='margin-left:auto;white-space:nowrap;padding:3px 7px;';
+                driveBtn.addEventListener('click',()=>this.drive.showDialog());
+                statusRow.appendChild(driveBtn);
+            }
             panel.append(statusRow);
             if(this.isChatGPT && header.parentElement) {
                 const direction=getComputedStyle(header.parentElement).flexDirection;
@@ -1058,6 +1375,7 @@
             deleteBtn.addEventListener('click',()=>this.runBulkAction('delete'));
             stopBtn.addEventListener('click',()=>{this.stopRequested=true;this.setStatus('Parando…');});
             this.updateBusyIndicator();
+            this.drive?.updateUI();
             this.scheduleRender();
         }
 
