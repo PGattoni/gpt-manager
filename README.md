@@ -15,7 +15,7 @@ Abra **https://pgattoni.github.io/gpt-manager/instalar.html** e clique em **Inst
 
 ## Versão publicada
 
-**v0.12.0:** conexão à conta Google por página auxiliar OAuth, cópia e sincronização em `appDataFolder`, união inicial de registros, importação/exportação JSON e sincronização automática opcional.
+**v0.12.1:** conexão à conta Google por página auxiliar OAuth, cópia e sincronização em `appDataFolder`, união inicial de registros, importação/exportação JSON e sincronização automática opcional.
 
 ## Atualização após a renomeação do repositório
 
@@ -51,18 +51,22 @@ A seção **Grupos** aparece logo abaixo de Explorar. Clique em **+** para criar
 
 A IA para sugerir grupos e tags está planejada para a próxima etapa; não está incluída nesta versão. Faça backup JSON antes de atualizar.
 
-### Interface v0.12.0
+### Interface v0.12.1
 
 O título **Grupos** acompanha a tipografia e o alinhamento da seção nativa **Fixados**. O cabeçalho não exibe contagem e não há frase de ajuda quando a lista está vazia. Criação e edição usam uma janela integrada, com campo de nome e paleta visual de cores. A exclusão exige confirmação no mesmo diálogo e não elimina conversas.
 
-### Correção v0.12.0
+### Correção v0.12.1
 
 A caixa de ferramentas e a organização de Explorar funcionam mesmo quando **Recentes** está recolhido. Links da seção **Grupos** não são confundidos com os links nativos do histórico ao escolher o ponto de inserção do painel.
 
-## Interface unificada v0.12.0
+## Interface unificada v0.12.1
 
 Redesenho visual do GPT Manager inspirado no protótipo discutido, adaptado à barra lateral existente do ChatGPT. Ferramentas ganham cabeçalho recolhível e controles padronizados, filtros em chips e ações consistentes. Grupos, diálogos de tags/cores, Drive e menus próprios usam o mesmo sistema de cor, borda e espaçamento.
 
 **Correção do painel rolante:** sempre que possível, a caixa de ferramentas é montada depois da linha fixa de Novo chat, fora do contêiner com rolagem do histórico. Nas variantes de DOM que não exponham essa linha, utiliza posicionamento aderente (sticky). Se o ChatGPT alterar a estrutura de navegação, o comportamento deve ser revalidado no navegador.
 
 As ferramentas permanecem funcionais mesmo recolhidas. As seções nativas de ChatGPT não são substituídas e nenhum dado de conversas é enviado adicionalmente ao Drive.
+
+### Refinamento v0.12.1
+
+A caixa de ferramentas também verifica se a linha de **Novo chat** está em um layout horizontal; nesse caso é inserida abaixo do contêiner de ícones, evitando disputar largura com os botões nativos. As ações **Arquivar**, **Excluir** e **Parar** recebem ícones SVG consistentes, sem modificar os seus eventos ou permissões.

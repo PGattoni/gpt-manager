@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GPT Manager v0.12.0
-// @name:zh-CN   GPT Manager v0.12.0
+// @name         GPT Manager v0.12.1
+// @name:zh-CN   GPT Manager v0.12.1
 // @namespace    http://tampermonkey.net/
-// @version      0.12.0
+// @version      0.12.1
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
@@ -747,7 +747,7 @@
             if(this.reportPanel?.isConnected){this.refresh();return;}
             const el=document.createElement('div');el.id='cbm-diag-modal';
             el.innerHTML=`
-                <div class="cbm-diag-top"><h2>GPT Manager v0.12.0 | Diagnóstico</h2>
+                <div class="cbm-diag-top"><h2>GPT Manager v0.12.1 | Diagnóstico</h2>
                     <button type="button" id="cbm-diag-close" aria-label="Fechar diagnóstico">Fechar ×</button></div>
                 <p>Abra a janela lateral do TXT, tente copiar o texto e, após a falha, clique em Atualizar.
                    O relatório contém apenas estruturas e contagens, não o texto ou dados de autenticação.</p>
@@ -1577,6 +1577,7 @@
                     min-height:0 !important; max-height:0 !important;
                     margin:0 !important; padding:0 !important; overflow:hidden !important;}
             `);
+            if(this.isChatGPT)addStyle("\n/* Ações de mesmo peso visual que o protótipo, com ícones consistentes. */\n#bulk-controls-panel.bulk-controls-panel-chatgpt .cbm-actions .bulk-btn{\n display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;\n gap:3px!important;min-height:47px!important;white-space:nowrap!important;font-size:11px!important;\n}\n#bulk-controls-panel.bulk-controls-panel-chatgpt .cbm-actions .bulk-btn::before{\n content:\"\";display:block;width:15px;height:15px;flex:0 0 15px;\n background-repeat:no-repeat;background-position:center;background-size:15px 15px;\n}\n#bulk-controls-panel.bulk-controls-panel-chatgpt #bulk-archive-btn::before{background-image:url(\"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23242c39%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%224%22%20width%3D%2218%22%20height%3D%225%22%20rx%3D%221%22%2F%3E%3Cpath%20d%3D%22M5%209v11h14V9M10%2014h4%22%2F%3E%3C%2Fsvg%3E\")}\n#bulk-controls-panel.bulk-controls-panel-chatgpt #bulk-delete-btn::before{background-image:url(\"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23242c39%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%207h16M10%207V4h4v3M6%207l1%2013h10l1-13M10%2011v6M14%2011v6%22%2F%3E%3C%2Fsvg%3E\")}\n#bulk-controls-panel.bulk-controls-panel-chatgpt #bulk-stop-btn::before{background-image:url(\"data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23242c39%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%225%22%20y%3D%225%22%20width%3D%2214%22%20height%3D%2214%22%20rx%3D%222%22%2F%3E%3C%2Fsvg%3E\")}\n#bulk-controls-panel.bulk-controls-panel-chatgpt #bulk-delete-btn::before{filter:sepia(1) saturate(5) hue-rotate(315deg)}\n#bulk-controls-panel.bulk-controls-panel-chatgpt .gm-groups-caption{font-weight:600}\n");
             this.startObserver();
             this.injectPanel();
             if(this.isChatGPT)this.groupsUI=new GPTManagerGroupsSidebar(this);
@@ -1614,7 +1615,22 @@
                     }
                     if(ancestor.tagName==='BODY')break;
                 }
-                if(!scrollable&&node.parentElement)return node;
+                if(!scrollable&&node.parentElement){
+                    const parent=node.parentElement;
+                    const layout=getComputedStyle(parent);
+                    if(/flex/.test(layout.display)&&/^(row|row-reverse)$/.test(layout.flexDirection)){
+                        // "Novo chat" pode estar dentro de uma linha de ícones.
+                        // A caixa deve entrar ABAIXO dessa linha, nunca ao lado.
+                        const grand=parent.parentElement;
+                        if(!grand||grand.tagName==='BODY')continue;
+                        const bounds=parent.getBoundingClientRect();
+                        const grandLayout=getComputedStyle(grand);
+                        if(bounds.height>85||bounds.width>490||
+                            (/flex/.test(grandLayout.display)&&/^(row|row-reverse)$/.test(grandLayout.flexDirection)))continue;
+                        node=parent;
+                    }
+                    return node;
+                }
             }
             return null;
         }
