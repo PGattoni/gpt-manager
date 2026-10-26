@@ -12,7 +12,7 @@ Abra **https://pgattoni.github.io/gpt-manager/** e clique em **Instalar ou atual
 
 ## Versão publicada
 
-**v0.10.0:** conexão à conta Google por página auxiliar OAuth, cópia e sincronização em `appDataFolder`, união inicial de registros, importação/exportação JSON e sincronização automática opcional.
+**v0.11.0:** conexão à conta Google por página auxiliar OAuth, cópia e sincronização em `appDataFolder`, união inicial de registros, importação/exportação JSON e sincronização automática opcional.
 
 ## Atualização após a renomeação do repositório
 
@@ -41,3 +41,9 @@ Script original: **Luo Jiahao**, licença MIT. Consulte o [repositório do proje
 5. Opcionalmente, habilite sincronização automática. A autorização Google é temporária e pode expirar.
 
 As configurações ficam em `appDataFolder` como `gpt-manager-settings-v1.json`. Não são armazenadas mensagens, conteúdo de anexos, segredo OAuth ou senhas. O cliente OAuth é público e funciona somente nas origens JavaScript autorizadas na Google Cloud. Reinstale o script caso o antigo ainda esteja ativo.
+
+## Grupos na versão 0.11.0
+
+A seção **Grupos** aparece logo abaixo de Explorar. Clique em **+** para criar, clique no nome para expandir, ou use **⋯** para editar e excluir apenas o grupo. Para associar uma conversa, abra seu menu **⋯ > Tags e cor**, marque os grupos e salve. Uma conversa pode pertencer a vários grupos sem duplicar ou mover seu conteúdo. O Google Drive sincroniza também grupos e associações. O backup JSON inclui esses dados.
+
+A IA para sugerir grupos e tags está planejada para a próxima etapa; não está incluída nesta versão. Faça backup JSON antes de atualizar.

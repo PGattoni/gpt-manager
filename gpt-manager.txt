@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GPT Manager v0.10.0
-// @name:zh-CN   GPT Manager v0.10.0
+// @name         GPT Manager v0.11.0
+// @name:zh-CN   GPT Manager v0.11.0
 // @namespace    http://tampermonkey.net/
-// @version      0.10.0
+// @version      0.11.0
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
@@ -747,7 +747,7 @@
             if(this.reportPanel?.isConnected){this.refresh();return;}
             const el=document.createElement('div');el.id='cbm-diag-modal';
             el.innerHTML=`
-                <div class="cbm-diag-top"><h2>GPT Manager v0.10.0 | Diagnóstico</h2>
+                <div class="cbm-diag-top"><h2>GPT Manager v0.11.0 | Diagnóstico</h2>
                     <button type="button" id="cbm-diag-close" aria-label="Fechar diagnóstico">Fechar ×</button></div>
                 <p>Abra a janela lateral do TXT, tente copiar o texto e, após a falha, clique em Atualizar.
                    O relatório contém apenas estruturas e contagens, não o texto ou dados de autenticação.</p>
@@ -813,6 +813,63 @@
         }
     }
 
+
+
+    class GPTManagerGroups {
+        constructor(){
+            this.key='gpt-manager-groups-v1';
+            try{
+                const value=JSON.parse(localStorage.getItem(this.key)||'{}');
+                this.data={groups:value.groups||{},memberships:value.memberships||{}};
+            }catch(_){this.data={groups:{},memberships:{}};}
+        }
+        save(){
+            localStorage.setItem(this.key,JSON.stringify(this.data));
+            window.dispatchEvent(new Event('gpt-manager-settings-changed'));
+        }
+        list(){
+            return Object.entries(this.data.groups).filter(([,g])=>g&&!g.deleted)
+                .map(([id,g])=>({id,...g})).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+        }
+        add(name,color){
+            name=String(name||'').trim().slice(0,70);
+            if(!name)throw Error('Informe o nome do grupo.');
+            if(this.list().length>=300)throw Error('Limite de 300 grupos.');
+            const id='g-'+crypto.randomUUID();
+            this.data.groups[id]={name,color:cbmLightColor(color)||'',updatedAt:Date.now(),deleted:false};
+            this.save();return id;
+        }
+        edit(id,name,color){
+            const old=this.data.groups[id];if(!old||old.deleted)throw Error('Grupo não encontrado.');
+            name=String(name||'').trim().slice(0,70);if(!name)throw Error('Informe o nome do grupo.');
+            this.data.groups[id]={...old,name,color:cbmLightColor(color)||'',updatedAt:Date.now()};
+            this.save();
+        }
+        remove(id){
+            const g=this.data.groups[id];if(!g||g.deleted)return;
+            this.data.groups[id]={...g,updatedAt:Date.now(),deleted:true};
+            this.save();
+        }
+        has(cid,gid){return Boolean(this.data.memberships[cid+'|'+gid]?.active&&!this.data.groups[gid]?.deleted);}
+        members(gid){
+            return Object.values(this.data.memberships).filter(m=>m&&m.groupId===gid&&m.active).map(m=>m.conversationId);
+        }
+        setMember(cid,gid,active){
+            if(!/^[0-9a-f-]{32,48}$/i.test(cid)||!this.data.groups[gid]||this.data.groups[gid].deleted)return;
+            const key=cid+'|'+gid;if(Boolean(this.data.memberships[key]?.active)===Boolean(active))return;
+            this.data.memberships[key]={conversationId:cid,groupId:gid,active:Boolean(active),updatedAt:Date.now()};
+            this.save();
+        }
+        removeConversation(cid){
+            let changed=false;
+            for(const [key,m] of Object.entries(this.data.memberships)){
+                if(m?.conversationId===cid&&m.active){
+                    this.data.memberships[key]={...m,active:false,updatedAt:Date.now()};changed=true;
+                }
+            }
+            if(changed)this.save();
+        }
+    }
 
     // Sincronização opcional. Sem conteúdo de mensagens, IDs de login, senha,
     // tokens persistentes ou Client Secret no Drive/GitHub.
@@ -965,6 +1022,44 @@
             }
             return merged;
         }
+
+        cleanGroupData(obj){
+            const source=obj&&typeof obj==='object'?obj:{};
+            const groups=Object.create(null),memberships=Object.create(null);
+            for(const [id,g] of Object.entries(source.groups||{})){
+                if(!/^g-[0-9a-f-]{36}$/i.test(id))continue;
+                if(Object.keys(groups).length>=500)throw Error('Limite de grupos excedido.');
+                const v=g&&typeof g==='object'?g:{};
+                groups[id]={name:String(v.name||'').slice(0,70),
+                    color:/^#[a-f0-9]{6}$/i.test(v.color||'')?v.color:'',
+                    deleted:v.deleted===true,updatedAt:Number.isSafeInteger(v.updatedAt)?v.updatedAt:0};
+            }
+            for(const [key,m] of Object.entries(source.memberships||{})){
+                const v=m&&typeof m==='object'?m:{};
+                if(!/^[0-9a-f-]{32,48}$/i.test(v.conversationId||'')||
+                   !/^g-[0-9a-f-]{36}$/i.test(v.groupId||'')||
+                   key!==v.conversationId+'|'+v.groupId)continue;
+                if(Object.keys(memberships).length>=60000)throw Error('Limite de vínculos excedido.');
+                memberships[key]={conversationId:v.conversationId,groupId:v.groupId,
+                    active:v.active===true,updatedAt:Number.isSafeInteger(v.updatedAt)?v.updatedAt:0};
+            }
+            return {groups,memberships};
+        }
+        mergeGroupData(local,remote){
+            const a=this.cleanGroupData(local),b=this.cleanGroupData(remote);
+            const res={groups:Object.create(null),memberships:Object.create(null)};
+            for(const type of ['groups','memberships']){
+                for(const k of new Set([...Object.keys(a[type]),...Object.keys(b[type])])){
+                    const x=a[type][k],y=b[type][k];
+                    if(!x)res[type][k]=y;
+                    else if(!y)res[type][k]=x;
+                    else if(x.updatedAt!==y.updatedAt)res[type][k]=x.updatedAt>y.updatedAt?x:y;
+                    else res[type][k]=(type==='groups' ? x.deleted : !x.active)?x:y;
+                }
+            }
+            return res;
+        }
+
         async findRemote(){
             const query="?spaces=appDataFolder&pageSize=100&fields="+encodeURIComponent('nextPageToken,files(id,name,mimeType,modifiedTime)')+
                 "&q="+encodeURIComponent("name = '"+this.fileName.replace(/'/g,"\\'")+"' and trashed = false");
@@ -978,11 +1073,12 @@
             const obj=await this.api('GET','/drive/v3/files/'+encodeURIComponent(file.id)+'?alt=media');
             if(!obj||obj.schema!==this.schema||obj.version!==1)
                 throw new Error('Formato do arquivo remoto não reconhecido. Nenhum dado foi alterado.');
-            return this.cleanRecords(obj.records);
+            return {records:this.cleanRecords(obj.records),groups:this.cleanGroupData(obj)};
         }
-        async writeRemote(file,records){
+        async writeRemote(file,records,groupData){
             const payload=JSON.stringify({schema:this.schema,version:1,
-                updatedAt:new Date().toISOString(),records});
+                updatedAt:new Date().toISOString(),records,
+                groups:groupData.groups,memberships:groupData.memberships});
             if(payload.length>12000000)throw new Error('O backup é grande demais para esta versão.');
             if(file){
                 return this.api('PATCH','/upload/drive/v3/files/'+encodeURIComponent(file.id)+'?uploadType=media',
@@ -1007,22 +1103,26 @@
             try{
                 const local=this.cleanRecords(this.manager.metadata.data);
                 const remoteFile=await this.findRemote();
-                const remote=await this.readRemote(remoteFile);
-                const merged=this.merge(local,remote);
-                await this.writeRemote(remoteFile,merged);
+                const remote=remoteFile?await this.readRemote(remoteFile):{records:{},groups:{groups:{},memberships:{}}};
+                const merged=this.merge(local,remote.records);
+                const mergedGroups=this.mergeGroupData(this.manager.groups.data,remote.groups);
+                await this.writeRemote(remoteFile,merged,mergedGroups);
                 // Nunca aplicar dados remotos antes de confirmar que a gravação
                 // conciliada ocorreu com sucesso.
                 this.suppress=true;
                 try{
                     this.manager.metadata.data=merged;
                     this.manager.metadata.save();
+                    this.manager.groups.data=mergedGroups;
+                    this.manager.groups.save();
                 }finally{this.suppress=false;}
                 this.fileId=remoteFile&&remoteFile.id||null;
                 this.savedAt=new Date().toLocaleString('pt-BR');
                 this.manager.updateDecorations();
                 this.manager.refreshSelectedState();
+                this.manager.groupsUI?.render(true);
                 if(this.manager.filterActive)this.manager.scheduleRender();
-                this.setMessage('Sincronizado em '+this.savedAt+'. '+Object.keys(merged).length+' registros.');
+                this.setMessage('Sincronizado em '+this.savedAt+'. '+Object.keys(merged).length+' registros e '+Object.values(mergedGroups.groups).filter(g=>!g.deleted).length+' grupos.');
             }catch(error){
                 this.setMessage('Falha: '+error.message);
                 throw error;
@@ -1030,7 +1130,8 @@
         }
         exportJSON(){
             const backup={schema:this.schema,version:1,
-                exportedAt:new Date().toISOString(),records:this.cleanRecords(this.manager.metadata.data)};
+                exportedAt:new Date().toISOString(),records:this.cleanRecords(this.manager.metadata.data),
+                ...this.cleanGroupData(this.manager.groups.data)};
             const url=URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}));
             const a=document.createElement('a');a.href=url;a.download='gpt-manager-configuracoes.json';
             document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
@@ -1043,12 +1144,15 @@
             const imported=this.cleanRecords(obj.records);
             const local=this.cleanRecords(this.manager.metadata.data);
             const combined=this.merge(local,imported);
+            const mergedGroups=this.mergeGroupData(this.manager.groups.data,obj);
             this.suppress=true;
-            try{this.manager.metadata.data=combined;this.manager.metadata.save();}
+            try{this.manager.metadata.data=combined;this.manager.metadata.save();
+                this.manager.groups.data=mergedGroups;this.manager.groups.save();}
             finally{this.suppress=false;}
             this.manager.updateDecorations();this.manager.refreshSelectedState();
+            this.manager.groupsUI?.render(true);
             if(this.manager.filterActive)this.manager.scheduleRender();
-            this.setMessage('Importação concluída. '+Object.keys(combined).length+' registros preservados.');
+            this.setMessage('Importação concluída. '+Object.keys(combined).length+' registros e '+Object.values(mergedGroups.groups).filter(g=>!g.deleted).length+' grupos preservados.');
         }
         disconnect(){
             this.token=null;this.tokenUntil=0;
@@ -1066,7 +1170,7 @@
             panel.setAttribute('aria-label','Sincronização Google Drive');
             const h=document.createElement('h2');h.textContent='GPT Manager · Google Drive';h.style.cssText='margin:0 0 8px;font-size:19px;';
             const info=document.createElement('p');
-            info.textContent='Sincronize tags, cores e proteções. O conteúdo das mensagens não é enviado ao Drive.';
+            info.textContent='Sincronize tags, cores, proteções e grupos. O conteúdo das mensagens não é enviado ao Drive.';
             const state=document.createElement('p');state.id='gpt-manager-drive-state';state.textContent=this.lastMessage;
             state.style.cssText='padding:10px;background:#f3f5f7;border-radius:8px;color:#263548;';
             const row=document.createElement('div');row.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:12px 0;';
@@ -1133,6 +1237,113 @@
         return '#'+mixed.map(n=>n.toString(16).padStart(2,'0')).join('');
     };
 
+
+    class GPTManagerGroupsSidebar {
+        constructor(manager){
+            this.manager=manager;
+            this.expanded=localStorage.getItem('gpt-manager-groups-expanded')!=='no';
+            this.opened=new Set();
+            this.signature='';
+            addStyle('#gpt-manager-groups{position:static!important;display:block!important;height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important;clear:both!important;margin:2px 0 5px;padding:0 4px}#gpt-manager-groups [hidden]{display:none!important}#gpt-manager-groups button{font-family:inherit;color:inherit} .gm-row{display:flex;align-items:center;gap:5px;min-height:28px;padding:2px 6px;height:auto!important} .gm-title{min-width:0;flex:1;text-align:left;border:0;background:transparent;cursor:pointer;font-size:12px} .gm-action{padding:2px 6px;border:0;border-radius:5px;background:transparent;cursor:pointer;font-size:16px} .gm-action:hover,.gm-title:hover{background:var(--token-surface-hover,#ddd4)} .gm-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px} .gm-link{display:block!important;height:auto!important;min-height:25px!important;max-height:none!important;line-height:21px!important;padding:2px 8px 2px 29px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:inherit;text-decoration:none;font-size:12px} .gm-link:hover{background:var(--token-surface-hover,#ddd4)}.gm-empty{padding:5px 10px;font-size:12px;opacity:.7}');
+            this.render(true);
+            this.timer=setInterval(()=>this.render(false),2500);
+        }
+        mount(){
+            let section=document.getElementById('gpt-manager-groups');
+            if(!section){
+                section=document.createElement('section');section.id='gpt-manager-groups';
+                section.setAttribute('aria-label','Grupos de conversas');
+                const row=document.createElement('div');row.className='gm-row';
+                const toggle=document.createElement('button');toggle.type='button';toggle.className='gm-title';
+                toggle.id='gpt-manager-groups-toggle';
+                toggle.addEventListener('click',()=>{
+                    this.expanded=!this.expanded;
+                    localStorage.setItem('gpt-manager-groups-expanded',this.expanded?'yes':'no');
+                    this.render(true);
+                });
+                const add=document.createElement('button');add.type='button';add.className='gm-action';
+                add.textContent='+';add.title='Criar grupo';add.setAttribute('aria-label','Criar grupo');
+                add.addEventListener('click',()=>this.edit());
+                row.append(toggle,add);
+                const list=document.createElement('div');list.id='gpt-manager-groups-list';
+                section.append(row,list);
+            }
+            const explore=this.manager.outerHeadingRow(this.manager.findSidebarHeading(/^(?:\.{3}\s*)?Explorar$/i));
+            if(explore?.parentElement&&!section.contains(explore)){
+                if(section.previousElementSibling!==explore)explore.after(section);
+            }else if(!section.isConnected){
+                const fixed=this.manager.outerHeadingRow(this.manager.findSidebarHeading(/^Fixados$/i));
+                if(fixed?.parentElement)fixed.before(section);
+            }
+            return section;
+        }
+        render(force){
+            const section=this.mount();
+            if(!section.isConnected)return;
+            const groups=this.manager.groups.list();
+            const signature=JSON.stringify([this.expanded,groups,this.manager.groups.data.memberships,
+                this.manager.records.size,Array.from(this.opened)]);
+            if(!force&&signature===this.signature)return;
+            this.signature=signature;
+            const toggle=section.querySelector('#gpt-manager-groups-toggle');
+            toggle.textContent=(this.expanded?'⌄ ':'› ')+'Grupos ('+groups.length+')';
+            toggle.setAttribute('aria-expanded',String(this.expanded));
+            const list=section.querySelector('#gpt-manager-groups-list');
+            list.replaceChildren();list.hidden=!this.expanded;
+            if(!this.expanded)return;
+            if(!groups.length){
+                const hint=document.createElement('div');hint.className='gm-empty';
+                hint.textContent='Clique em + para criar um grupo.';list.append(hint);
+                return;
+            }
+            for(const group of groups){
+                const row=document.createElement('div');row.className='gm-row';
+                const dot=document.createElement('span');dot.className='gm-dot';
+                dot.style.background=group.color||'#ddd';
+                const name=document.createElement('button');name.type='button';name.className='gm-title';
+                const ids=this.manager.groups.members(group.id);
+                name.textContent=(this.opened.has(group.id)?'⌄ ':'› ')+group.name+' ('+ids.length+')';
+                name.setAttribute('aria-expanded',String(this.opened.has(group.id)));
+                name.addEventListener('click',()=>{
+                    if(this.opened.has(group.id))this.opened.delete(group.id);else this.opened.add(group.id);
+                    this.render(true);
+                });
+                const edit=document.createElement('button');edit.type='button';edit.className='gm-action';
+                edit.textContent='⋯';edit.title='Editar grupo';edit.addEventListener('click',()=>this.edit(group.id));
+                row.append(dot,name,edit);list.append(row);
+                if(this.opened.has(group.id)){
+                    if(!ids.length){
+                        const empty=document.createElement('div');empty.className='gm-empty';
+                        empty.textContent='Nenhuma conversa neste grupo.';list.append(empty);
+                    }
+                    const ordered=ids.sort((a,b)=>(this.manager.records.get(b)?.updated||0)-(this.manager.records.get(a)?.updated||0));
+                    for(const id of ordered){
+                        const a=document.createElement('a');a.className='gm-link';
+                        a.href='https://chatgpt.com/c/'+encodeURIComponent(id);
+                        a.textContent=this.manager.records.get(id)?.title||'Interação não carregada';
+                        a.title=a.textContent;list.append(a);
+                    }
+                }
+            }
+        }
+        edit(id){
+            const old=id?this.manager.groups.data.groups[id]:null;
+            const name=prompt(old?'Editar nome do grupo:':'Nome do novo grupo:',old?.name||'');
+            if(name===null)return;
+            const color=prompt('Cor clara do grupo (#RRGGBB; vazio para nenhuma):',old?.color||'#dceeff');
+            if(color===null)return;
+            if(color&&!/^#[0-9a-f]{6}$/i.test(color)){alert('Informe uma cor como #DCEEFF.');return;}
+            try{
+                if(old)this.manager.groups.edit(id,name,color);
+                else this.manager.groups.add(name,color);
+                this.render(true);
+            }catch(e){alert(e.message);return;}
+            if(old&&confirm('Deseja excluir o grupo? As conversas não serão excluídas.')){
+                this.manager.groups.remove(id);this.opened.delete(id);this.render(true);
+            }
+        }
+    }
+
     class BulkManager {
         constructor() {
             this.adapter = getAdapter();
@@ -1144,6 +1355,7 @@
             this.filterActive = false;
             this.filterModes = new Set(['name']);
             this.metadata = new CBMConversationMetadata();
+            this.groups = new GPTManagerGroups();
             this.drive = this.isChatGPT ? new GPTManagerDriveSync(this) : null;
             this.contentCache = new Map(); // Só memória da aba; nunca persiste mensagens.
             this.contentMatched = new Set();
@@ -1285,6 +1497,7 @@
             `);
             this.startObserver();
             this.injectPanel();
+            if(this.isChatGPT)this.groupsUI=new GPTManagerGroupsSidebar(this);
             if (this.isChatGPT) this.historyPromise=this.loadHistory();
         }
 
@@ -1550,6 +1763,7 @@
                     await delay(80);
                 }
                 this.historyComplete=true;
+                this.groupsUI?.render(true);
             }catch(error){
                 this.loadError=error;
                 window.__cbmDiagnostics?.fail('carregar-historico',error);
@@ -1874,7 +2088,22 @@
             const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancelar';
             const save=document.createElement('button');save.type='submit';save.textContent='Salvar';
             buttons.append(cancel,save);
-            dialog.append(title,subtitle,tagLabel,colorLabel,swatches,customLabel,small,buttons);
+            const memberships=document.createElement('fieldset');
+            memberships.style.cssText='border:1px solid #cfd6df;border-radius:8px;padding:10px;margin:12px 0;';
+            const legend=document.createElement('legend');legend.textContent='Grupos da conversa';
+            memberships.append(legend);
+            const choices=[];
+            for(const group of this.groups.list()){
+                const row=document.createElement('label');
+                row.style.cssText='display:flex;align-items:center;gap:8px;padding:4px;';
+                const cb=document.createElement('input');cb.type='checkbox';cb.checked=this.groups.has(id,group.id);
+                choices.push([group.id,cb]);row.append(cb,document.createTextNode(group.name));memberships.append(row);
+            }
+            if(!choices.length){
+                const message=document.createElement('small');message.textContent='Crie grupos na barra lateral usando o botão +.';
+                memberships.append(message);
+            }
+            dialog.append(title,subtitle,tagLabel,colorLabel,swatches,customLabel,small,memberships,buttons);
             overlay.appendChild(dialog);document.body.appendChild(overlay);
             const close=()=>{overlay.remove();document.removeEventListener('keydown',escape);};
             const escape=e=>{if(e.key==='Escape')close();};
@@ -1885,6 +2114,8 @@
                 e.preventDefault();
                 const tags=tagInput.value.split(',').map(x=>x.trim()).filter(Boolean);
                 this.metadata.set(id,tags,chosen);
+                for(const [groupId,cb] of choices)this.groups.setMember(id,groupId,cb.checked);
+                this.groupsUI?.render(true);
                 close();
                 this.updateDecorations();
                 if(this.filterActive){this.scheduleRender();this.updateStatus();this.refreshSelectedState();}
@@ -2005,7 +2236,7 @@
                             try{
                                 await this.requestChatGPTAction(id,action);
                                 this.records.delete(id);
-                                if(action==='delete')this.metadata.delete(id);
+                                if(action==='delete'){this.metadata.delete(id);this.groups.removeConversation(id);this.groupsUI?.render(true);}
                                 this.collapseDeletedRow(id);
                                 this.selectedIds.delete(id);
                                 successes++;
