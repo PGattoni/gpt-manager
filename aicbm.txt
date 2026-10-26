@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GPT Manager v0.11.0
-// @name:zh-CN   GPT Manager v0.11.0
+// @name         GPT Manager v0.11.1
+// @name:zh-CN   GPT Manager v0.11.1
 // @namespace    http://tampermonkey.net/
-// @version      0.11.0
+// @version      0.11.1
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
@@ -747,7 +747,7 @@
             if(this.reportPanel?.isConnected){this.refresh();return;}
             const el=document.createElement('div');el.id='cbm-diag-modal';
             el.innerHTML=`
-                <div class="cbm-diag-top"><h2>GPT Manager v0.11.0 | Diagnóstico</h2>
+                <div class="cbm-diag-top"><h2>GPT Manager v0.11.1 | Diagnóstico</h2>
                     <button type="button" id="cbm-diag-close" aria-label="Fechar diagnóstico">Fechar ×</button></div>
                 <p>Abra a janela lateral do TXT, tente copiar o texto e, após a falha, clique em Atualizar.
                    O relatório contém apenas estruturas e contagens, não o texto ou dados de autenticação.</p>
@@ -1309,8 +1309,16 @@
                     this.render(true);
                 });
                 const edit=document.createElement('button');edit.type='button';edit.className='gm-action';
-                edit.textContent='⋯';edit.title='Editar grupo';edit.addEventListener('click',()=>this.edit(group.id));
-                row.append(dot,name,edit);list.append(row);
+                edit.textContent='⋯';edit.title='Editar nome e cor';edit.addEventListener('click',()=>this.edit(group.id));
+                const remove=document.createElement('button');remove.type='button';remove.className='gm-action';
+                remove.textContent='×';remove.title='Excluir grupo (não exclui conversas)';
+                remove.setAttribute('aria-label','Excluir grupo '+group.name);
+                remove.addEventListener('click',()=>{
+                    if(confirm('Excluir o grupo "'+group.name+'"? Nenhuma conversa será excluída.')){
+                        this.manager.groups.remove(group.id);this.opened.delete(group.id);this.render(true);
+                    }
+                });
+                row.append(dot,name,edit,remove);list.append(row);
                 if(this.opened.has(group.id)){
                     if(!ids.length){
                         const empty=document.createElement('div');empty.className='gm-empty';
@@ -1338,9 +1346,6 @@
                 else this.manager.groups.add(name,color);
                 this.render(true);
             }catch(e){alert(e.message);return;}
-            if(old&&confirm('Deseja excluir o grupo? As conversas não serão excluídas.')){
-                this.manager.groups.remove(id);this.opened.delete(id);this.render(true);
-            }
         }
     }
 
