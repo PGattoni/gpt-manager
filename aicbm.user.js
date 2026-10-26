@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GPT Manager v0.11.1
-// @name:zh-CN   GPT Manager v0.11.1
+// @name         GPT Manager v0.11.2
+// @name:zh-CN   GPT Manager v0.11.2
 // @namespace    http://tampermonkey.net/
-// @version      0.11.1
+// @version      0.11.2
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
@@ -747,7 +747,7 @@
             if(this.reportPanel?.isConnected){this.refresh();return;}
             const el=document.createElement('div');el.id='cbm-diag-modal';
             el.innerHTML=`
-                <div class="cbm-diag-top"><h2>GPT Manager v0.11.1 | Diagnóstico</h2>
+                <div class="cbm-diag-top"><h2>GPT Manager v0.11.2 | Diagnóstico</h2>
                     <button type="button" id="cbm-diag-close" aria-label="Fechar diagnóstico">Fechar ×</button></div>
                 <p>Abra a janela lateral do TXT, tente copiar o texto e, após a falha, clique em Atualizar.
                    O relatório contém apenas estruturas e contagens, não o texto ou dados de autenticação.</p>
@@ -1241,27 +1241,43 @@
     class GPTManagerGroupsSidebar {
         constructor(manager){
             this.manager=manager;
-            this.expanded=localStorage.getItem('gpt-manager-groups-expanded')!=='no';
+            this.expanded=localStorage.getItem('gpt-manager-groups-expanded')==='yes';
             this.opened=new Set();
             this.signature='';
-            addStyle('#gpt-manager-groups{position:static!important;display:block!important;height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important;clear:both!important;margin:2px 0 5px;padding:0 4px}#gpt-manager-groups [hidden]{display:none!important}#gpt-manager-groups button{font-family:inherit;color:inherit} .gm-row{display:flex;align-items:center;gap:5px;min-height:28px;padding:2px 6px;height:auto!important} .gm-title{min-width:0;flex:1;text-align:left;border:0;background:transparent;cursor:pointer;font-size:12px} .gm-action{padding:2px 6px;border:0;border-radius:5px;background:transparent;cursor:pointer;font-size:16px} .gm-action:hover,.gm-title:hover{background:var(--token-surface-hover,#ddd4)} .gm-dot{width:9px;height:9px;border-radius:50%;flex:0 0 9px} .gm-link{display:block!important;height:auto!important;min-height:25px!important;max-height:none!important;line-height:21px!important;padding:2px 8px 2px 29px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:inherit;text-decoration:none;font-size:12px} .gm-link:hover{background:var(--token-surface-hover,#ddd4)}.gm-empty{padding:5px 10px;font-size:12px;opacity:.7}');
+            addStyle("\n#gpt-manager-groups{display:block!important;position:static!important;height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important;clear:both!important;margin:7px 0 4px;padding:0;flex-shrink:0!important}\n#gpt-manager-groups [hidden]{display:none!important}#gpt-manager-groups button{font-family:inherit;color:inherit}\n.gm-groups-header{display:flex;align-items:center;gap:5px;height:28px;min-height:28px;max-height:28px;padding-right:8px}\n.gm-groups-toggle{display:inline-flex;align-items:center;gap:5px;flex:1;min-width:0;padding:3px 0;text-align:left;background:transparent;border:0;border-radius:6px;cursor:pointer}\n.gm-groups-caption{font-size:12px;font-weight:600;color:var(--text-secondary,#858585);white-space:nowrap}\n.gm-groups-chevron{font-size:15px;line-height:1;opacity:.75}\n.gm-groups-add{background:transparent;border:0;border-radius:6px;cursor:pointer;padding:2px 7px;flex:none;font-size:16px;opacity:.7}\n.gm-groups-add:hover,.gm-groups-toggle:hover,.gm-group-button:hover,.gm-group-menu:hover{background:var(--token-surface-hover,#dddddd30);opacity:1}\n#gpt-manager-groups-list{display:block!important;min-height:0!important;height:auto!important;max-height:none!important;overflow:visible!important}\n#gpt-manager-groups-list[hidden]{display:none!important}\n.gm-group-row{display:flex;align-items:center;gap:6px;height:28px;min-height:28px;max-height:28px;padding:1px 6px 1px 10px;border-radius:7px}\n.gm-group-dot{width:9px;height:9px;flex:0 0 9px;border-radius:50%;border:1px solid #9994}\n.gm-group-button{flex:1;min-width:0;background:transparent;border:0;border-radius:5px;padding:3px 2px;cursor:pointer;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}\n.gm-group-menu{background:transparent;border:0;border-radius:5px;cursor:pointer;min-width:24px;height:24px;padding:0 4px;opacity:.65;font-size:17px}\n#gpt-manager-groups .gm-group-link{display:block!important;height:auto!important;min-height:26px!important;max-height:none!important;box-sizing:border-box!important;padding:3px 6px 3px 28px!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:20px!important;font-size:12px;color:inherit;text-decoration:none;border-radius:6px}\n#gpt-manager-groups .gm-group-link:hover{background:var(--token-surface-hover,#dedede33)}\n.gm-group-empty{font-size:12px;padding:5px 6px 5px 25px;color:var(--text-secondary,#888)}\n#gm-group-dialog-overlay{position:fixed;inset:0;z-index:2147483601;display:flex;align-items:center;justify-content:center;padding:16px;background:#0008}\n#gm-group-dialog{box-sizing:border-box;width:min(430px,100%);max-height:90vh;overflow:auto;padding:23px;border:1px solid var(--border-light,#ddd);border-radius:15px;background:var(--main-surface-primary,#fff);color:var(--text-primary,#202124);box-shadow:0 18px 52px #0003;font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}\n#gm-group-dialog h2{font-size:18px;font-weight:600;line-height:1.35;margin:0 0 18px}\n#gm-group-dialog .gm-form-label{display:block;margin-bottom:7px;font-size:13px;font-weight:600}\n#gm-group-dialog .gm-form-input{box-sizing:border-box;width:100%;margin-bottom:18px;padding:10px 11px;border:1px solid var(--border-medium,#ccd1d5);border-radius:9px;font:inherit;color:inherit;background:transparent}\n#gm-group-dialog .gm-palette{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:8px 0 14px}\n#gm-group-dialog .gm-color-choice{display:flex;justify-content:center;align-items:center;width:100%;height:34px;border:1px solid #7775;border-radius:9px;cursor:pointer;font-size:17px;color:#24303c;background:transparent}\n#gm-group-dialog .gm-color-choice[aria-pressed=\"true\"]{outline:2px solid var(--text-primary,#222);outline-offset:2px}\n#gm-group-dialog .gm-custom-choice{display:flex;align-items:center;gap:8px;margin:6px 0 20px;font-size:12px;color:var(--text-secondary,#777)}\n#gm-group-dialog .gm-custom-choice input{width:33px;height:27px;border:0;background:none;padding:0;cursor:pointer}\n#gm-group-dialog .gm-dialog-actions{display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:8px}\n#gm-group-dialog .gm-dialog-btn{padding:8px 13px;border:1px solid var(--border-medium,#ccc);border-radius:8px;background:transparent;color:inherit;cursor:pointer;font:inherit}\n#gm-group-dialog .gm-dialog-save{background:#202b3a;color:#fff;border-color:#202b3a}\n#gm-group-dialog .gm-dialog-delete{margin-right:auto;color:#b3261e;border-color:#d9a8a3}\n#gm-group-dialog .gm-dialog-error{min-height:18px;margin:-10px 0 8px;font-size:12px;color:#b3261e}\n");
             this.render(true);
             this.timer=setInterval(()=>this.render(false),2500);
+        }
+
+        syncHeaderStyle(section){
+            const native=this.manager.findSidebarHeading(/^Fixados$/i);
+            const label=section.querySelector('.gm-groups-caption');
+            const row=section.querySelector('.gm-groups-header');
+            if(!native||!label||!row)return;
+            const style=getComputedStyle(native);
+            for(const name of ['fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','color']){
+                if(style[name])label.style[name]=style[name];
+            }
+            const offset=native.getBoundingClientRect().left-section.getBoundingClientRect().left;
+            if(Number.isFinite(offset)&&offset>=0&&offset<=65)row.style.paddingLeft=offset+'px';
         }
         mount(){
             let section=document.getElementById('gpt-manager-groups');
             if(!section){
                 section=document.createElement('section');section.id='gpt-manager-groups';
                 section.setAttribute('aria-label','Grupos de conversas');
-                const row=document.createElement('div');row.className='gm-row';
-                const toggle=document.createElement('button');toggle.type='button';toggle.className='gm-title';
+                const row=document.createElement('div');row.className='gm-groups-header';
+                const toggle=document.createElement('button');toggle.type='button';toggle.className='gm-groups-toggle';
                 toggle.id='gpt-manager-groups-toggle';
+                const caption=document.createElement('span');caption.className='gm-groups-caption';caption.textContent='Grupos';
+                const chevron=document.createElement('span');chevron.className='gm-groups-chevron';chevron.setAttribute('aria-hidden','true');
+                toggle.append(caption,chevron);
                 toggle.addEventListener('click',()=>{
                     this.expanded=!this.expanded;
                     localStorage.setItem('gpt-manager-groups-expanded',this.expanded?'yes':'no');
                     this.render(true);
                 });
-                const add=document.createElement('button');add.type='button';add.className='gm-action';
+                const add=document.createElement('button');add.type='button';add.className='gm-groups-add';
                 add.textContent='+';add.title='Criar grupo';add.setAttribute('aria-label','Criar grupo');
                 add.addEventListener('click',()=>this.edit());
                 row.append(toggle,add);
@@ -1275,6 +1291,7 @@
                 const fixed=this.manager.outerHeadingRow(this.manager.findSidebarHeading(/^Fixados$/i));
                 if(fixed?.parentElement)fixed.before(section);
             }
+            this.syncHeaderStyle(section);
             return section;
         }
         render(force){
@@ -1286,21 +1303,18 @@
             if(!force&&signature===this.signature)return;
             this.signature=signature;
             const toggle=section.querySelector('#gpt-manager-groups-toggle');
-            toggle.textContent=(this.expanded?'⌄ ':'› ')+'Grupos ('+groups.length+')';
+            toggle.querySelector('.gm-groups-chevron').textContent=this.expanded?'⌄':'›';
+            toggle.title='Grupos ('+groups.length+')';
             toggle.setAttribute('aria-expanded',String(this.expanded));
             const list=section.querySelector('#gpt-manager-groups-list');
             list.replaceChildren();list.hidden=!this.expanded;
             if(!this.expanded)return;
-            if(!groups.length){
-                const hint=document.createElement('div');hint.className='gm-empty';
-                hint.textContent='Clique em + para criar um grupo.';list.append(hint);
-                return;
-            }
+            if(!groups.length)return;
             for(const group of groups){
-                const row=document.createElement('div');row.className='gm-row';
-                const dot=document.createElement('span');dot.className='gm-dot';
+                const row=document.createElement('div');row.className='gm-group-row';
+                const dot=document.createElement('span');dot.className='gm-group-dot';
                 dot.style.background=group.color||'#ddd';
-                const name=document.createElement('button');name.type='button';name.className='gm-title';
+                const name=document.createElement('button');name.type='button';name.className='gm-group-button';
                 const ids=this.manager.groups.members(group.id);
                 name.textContent=(this.opened.has(group.id)?'⌄ ':'› ')+group.name+' ('+ids.length+')';
                 name.setAttribute('aria-expanded',String(this.opened.has(group.id)));
@@ -1308,25 +1322,17 @@
                     if(this.opened.has(group.id))this.opened.delete(group.id);else this.opened.add(group.id);
                     this.render(true);
                 });
-                const edit=document.createElement('button');edit.type='button';edit.className='gm-action';
+                const edit=document.createElement('button');edit.type='button';edit.className='gm-group-menu';
                 edit.textContent='⋯';edit.title='Editar nome e cor';edit.addEventListener('click',()=>this.edit(group.id));
-                const remove=document.createElement('button');remove.type='button';remove.className='gm-action';
-                remove.textContent='×';remove.title='Excluir grupo (não exclui conversas)';
-                remove.setAttribute('aria-label','Excluir grupo '+group.name);
-                remove.addEventListener('click',()=>{
-                    if(confirm('Excluir o grupo "'+group.name+'"? Nenhuma conversa será excluída.')){
-                        this.manager.groups.remove(group.id);this.opened.delete(group.id);this.render(true);
-                    }
-                });
-                row.append(dot,name,edit,remove);list.append(row);
+                row.append(dot,name,edit);list.append(row);
                 if(this.opened.has(group.id)){
                     if(!ids.length){
-                        const empty=document.createElement('div');empty.className='gm-empty';
+                        const empty=document.createElement('div');empty.className='gm-group-empty';
                         empty.textContent='Nenhuma conversa neste grupo.';list.append(empty);
                     }
                     const ordered=ids.sort((a,b)=>(this.manager.records.get(b)?.updated||0)-(this.manager.records.get(a)?.updated||0));
                     for(const id of ordered){
-                        const a=document.createElement('a');a.className='gm-link';
+                        const a=document.createElement('a');a.className='gm-group-link';
                         a.href='https://chatgpt.com/c/'+encodeURIComponent(id);
                         a.textContent=this.manager.records.get(id)?.title||'Interação não carregada';
                         a.title=a.textContent;list.append(a);
@@ -1334,18 +1340,88 @@
                 }
             }
         }
+
         edit(id){
+            document.getElementById('gm-group-dialog-overlay')?.remove();
             const old=id?this.manager.groups.data.groups[id]:null;
-            const name=prompt(old?'Editar nome do grupo:':'Nome do novo grupo:',old?.name||'');
-            if(name===null)return;
-            const color=prompt('Cor clara do grupo (#RRGGBB; vazio para nenhuma):',old?.color||'#dceeff');
-            if(color===null)return;
-            if(color&&!/^#[0-9a-f]{6}$/i.test(color)){alert('Informe uma cor como #DCEEFF.');return;}
-            try{
-                if(old)this.manager.groups.edit(id,name,color);
-                else this.manager.groups.add(name,color);
-                this.render(true);
-            }catch(e){alert(e.message);return;}
+            if(id&&(!old||old.deleted))return;
+            const overlay=document.createElement('div');overlay.id='gm-group-dialog-overlay';
+            const form=document.createElement('form');form.id='gm-group-dialog';
+            form.setAttribute('role','dialog');form.setAttribute('aria-modal','true');
+            form.setAttribute('aria-labelledby','gm-group-dialog-title');
+            const title=document.createElement('h2');title.id='gm-group-dialog-title';
+            title.textContent=old?'Editar grupo':'Novo grupo';
+            const nameLabel=document.createElement('label');nameLabel.className='gm-form-label';
+            nameLabel.htmlFor='gm-group-name';nameLabel.textContent='Nome do grupo';
+            const name=document.createElement('input');name.id='gm-group-name';
+            name.className='gm-form-input';name.type='text';name.maxLength=70;name.required=true;
+            name.placeholder='Ex.: Scripts e automação';name.value=old?.name||'';
+            const colorLabel=document.createElement('div');colorLabel.className='gm-form-label';
+            colorLabel.textContent='Cor';
+            const palette=document.createElement('div');palette.className='gm-palette';
+            palette.setAttribute('role','group');palette.setAttribute('aria-label','Escolher cor do grupo');
+            let selected=old?.color||'';
+            const options=[];
+            const refresh=()=>{
+                for(const [btn,color,label] of options){
+                    const current=selected===color;
+                    btn.setAttribute('aria-pressed',String(current));
+                    btn.setAttribute('aria-label',(current?'Selecionado: ':'')+label);
+                }
+            };
+            for(const [color,label] of [...CBM_COLORS,['#e9edf2','Cinza']]){
+                const btn=document.createElement('button');btn.type='button';
+                btn.className='gm-color-choice';btn.title=label;
+                btn.style.background=color||'transparent';
+                if(!color)btn.textContent='×';
+                btn.addEventListener('click',()=>{selected=color;refresh();});
+                palette.append(btn);options.push([btn,color,label]);
+            }
+            const customLabel=document.createElement('label');customLabel.className='gm-custom-choice';
+            const custom=document.createElement('input');custom.type='color';
+            custom.value=selected||'#dceeff';custom.setAttribute('aria-label','Cor personalizada');
+            custom.addEventListener('input',()=>{selected=cbmLightColor(custom.value);refresh();});
+            customLabel.append(custom,document.createTextNode('Personalizar cor'));
+            const error=document.createElement('div');error.className='gm-dialog-error';
+            error.setAttribute('role','alert');
+            const buttons=document.createElement('div');buttons.className='gm-dialog-actions';
+            const cancel=document.createElement('button');cancel.type='button';
+            cancel.className='gm-dialog-btn';cancel.textContent='Cancelar';
+            const save=document.createElement('button');save.type='submit';
+            save.className='gm-dialog-btn gm-dialog-save';save.textContent='Salvar';
+            const close=()=>{document.removeEventListener('keydown',escape);overlay.remove();};
+            const escape=e=>{if(e.key==='Escape'){e.preventDefault();close();}};
+            document.addEventListener('keydown',escape);
+            overlay.addEventListener('click',e=>{if(e.target===overlay)close();});
+            cancel.addEventListener('click',close);
+            if(old){
+                const remove=document.createElement('button');remove.type='button';
+                remove.className='gm-dialog-btn gm-dialog-delete';remove.textContent='Excluir grupo';
+                remove.addEventListener('click',()=>{
+                    if(remove.dataset.confirm!=='yes'){
+                        remove.dataset.confirm='yes';remove.textContent='Confirmar exclusão';
+                        error.textContent='Apenas o grupo será excluído. As conversas serão preservadas.';
+                        return;
+                    }
+                    this.manager.groups.remove(id);this.opened.delete(id);
+                    close();this.render(true);
+                });
+                buttons.append(remove);
+            }
+            buttons.append(cancel,save);
+            form.append(title,nameLabel,name,colorLabel,palette,customLabel,error,buttons);
+            form.addEventListener('submit',e=>{
+                e.preventDefault();
+                const value=name.value.trim();
+                if(!value){error.textContent='Informe o nome do grupo.';name.focus();return;}
+                try{
+                    if(old)this.manager.groups.edit(id,value,selected);
+                    else this.manager.groups.add(value,selected);
+                    close();this.render(true);
+                }catch(e){error.textContent=e.message||'Não foi possível salvar.';}
+            });
+            overlay.append(form);document.body.append(overlay);
+            refresh();name.focus();
         }
     }
 
