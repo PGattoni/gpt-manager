@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GPT Manager v0.12.1
-// @name:zh-CN   GPT Manager v0.12.1
+// @name         GPT Manager v0.13.0
+// @name:zh-CN   GPT Manager v0.13.0
 // @namespace    http://tampermonkey.net/
-// @version      0.12.1
+// @version      0.13.0
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
@@ -747,7 +747,7 @@
             if(this.reportPanel?.isConnected){this.refresh();return;}
             const el=document.createElement('div');el.id='cbm-diag-modal';
             el.innerHTML=`
-                <div class="cbm-diag-top"><h2>GPT Manager v0.12.1 | Diagnóstico</h2>
+                <div class="cbm-diag-top"><h2>GPT Manager v0.13.0 | Diagnóstico</h2>
                     <button type="button" id="cbm-diag-close" aria-label="Fechar diagnóstico">Fechar ×</button></div>
                 <p>Abra a janela lateral do TXT, tente copiar o texto e, após a falha, clique em Atualizar.
                    O relatório contém apenas estruturas e contagens, não o texto ou dados de autenticação.</p>
@@ -1656,34 +1656,17 @@
             panel.className=this.isChatGPT ? 'bulk-controls-panel-chatgpt' : 'bulk-controls-panel-gemini';
             const toolsBody=document.createElement('div');
             toolsBody.className='gm-tools-body';
-            if(this.isChatGPT){
-                const toolbar=document.createElement('div');toolbar.className='gm-tools-toolbar';
-                const heading=document.createElement('span');heading.className='gm-tools-heading';
-                heading.textContent='Ferramentas';
-                const toggle=document.createElement('button');toggle.type='button';
-                toggle.className='gm-tools-toggle';toggle.title='Recolher ou expandir ferramentas';
-                toggle.setAttribute('aria-label','Recolher ou expandir ferramentas');
-                toggle.setAttribute('aria-controls','gm-tools-content');
-                toolsBody.id='gm-tools-content';
-                const expanded=localStorage.getItem('gpt-manager-tools-expanded')!=='no';
-                const redraw=state=>{
-                    toolsBody.hidden=!state;
-                    toggle.textContent=state?'⌄':'›';
-                    toggle.setAttribute('aria-expanded',String(state));
-                };
-                redraw(expanded);
-                toggle.addEventListener('click',()=>{
-                    const next=toggle.getAttribute('aria-expanded')!=='true';
-                    redraw(next);localStorage.setItem('gpt-manager-tools-expanded',next?'yes':'no');
-                });
-                toolbar.append(heading,toggle);
-                panel.append(toolbar,toolsBody);
-            }else panel.append(toolsBody);
-            const selectRow=document.createElement('label');
-            selectRow.className='cbm-select-line';
+            toolsBody.id='gm-tools-content';
+            // Painel permanentemente compacto, sem título ou seta de recolhimento.
+            panel.append(toolsBody);
+            const selectRow=document.createElement('div');
+            selectRow.className='gm-selection-drive-row';
+            const selectLabel=document.createElement('label');
+            selectLabel.className='cbm-select-line';
             const selectAll=document.createElement('input');
             selectAll.type='checkbox'; selectAll.id='bulk-select-all';
-            selectRow.append(selectAll,document.createTextNode('Selecionar todas'));
+            selectLabel.append(selectAll,document.createTextNode('Selecionar todas'));
+            selectRow.append(selectLabel);
             const actions=document.createElement('div');actions.className='cbm-actions';
             const archiveBtn=this.createActionButton('bulk-archive-btn','Arquivar (0)');
             const deleteBtn=this.createActionButton('bulk-delete-btn','Excluir (0)');
@@ -1718,18 +1701,15 @@
                     check.className='cbm-mode-input';check.dataset.mode=key;
                     check.setAttribute('aria-label',`Buscar em ${name.toLowerCase()}`);
                     check.checked=this.filterModes.has(key);
-                    const indicator=document.createElement('span');indicator.className='cbm-mode-indicator';
-                    indicator.setAttribute('aria-hidden','true');
-                    const updateIndicator=()=>{indicator.textContent=check.checked?'☑':'☐';};
+                    check.title='Buscar em '+name.toLowerCase();
+                    // Os três filtros usam o MESMO checkbox das conversas e de Selecionar todas.
                     check.addEventListener('change',()=>{
                         if(check.checked)this.filterModes.add(key);
                         else this.filterModes.delete(key);
                         if(!this.filterModes.size){check.checked=true;this.filterModes.add(key);}
-                        updateIndicator();
                         if(this.filterActive)this.applyFilter(input.value);
                     });
-                    updateIndicator();
-                    label.append(check,indicator,document.createTextNode(name));modes.appendChild(label);
+                    label.append(check,document.createTextNode(name));modes.appendChild(label);
                 }
                 toolsBody.append(modes);
             }
@@ -1737,10 +1717,10 @@
                 const driveBtn=document.createElement('button');
                 driveBtn.type='button';driveBtn.id='gpt-manager-drive-button';
                 driveBtn.className='bulk-btn';driveBtn.textContent='Drive';
-                driveBtn.title='Sincronizar tags, cores e proteções';
+                driveBtn.title='Sincronizar tags, cores, grupos e proteções no Google Drive';
                 driveBtn.style.cssText='margin-left:auto;white-space:nowrap;padding:3px 7px;';
                 driveBtn.addEventListener('click',()=>this.drive.showDialog());
-                statusRow.appendChild(driveBtn);
+                selectRow.appendChild(driveBtn);
             }
             toolsBody.append(statusRow);
             if(this.isChatGPT && fixedNewChatRow && fixedNewChatRow.parentElement){
@@ -1772,7 +1752,7 @@
         }
 
         createActionButton(id,label){
-            const btn=document.createElement('button');btn.type='button';btn.id=id;btn.className='bulk-btn';btn.textContent=label;
+            const btn=document.createElement('button');btn.type='button';btn.id=id;btn.className='bulk-btn';btn.textContent=label;btn.title=label;btn.setAttribute('aria-label',label);
             return btn;
         }
         recordFromNode(node){
@@ -1857,8 +1837,14 @@
             const count=Array.from(this.selectedIds).filter(id=>!this.metadata.isProtected(id)).length;
             const archiveBtn=document.getElementById('bulk-archive-btn');
             const deleteBtn=document.getElementById('bulk-delete-btn');
-            if(archiveBtn&&!this.isDeleting)archiveBtn.textContent=`Arquivar (${count})`;
-            if(deleteBtn&&!this.isDeleting)deleteBtn.textContent=`Excluir (${count})`;
+            if(archiveBtn&&!this.isDeleting){
+                const label=`Arquivar (${count})`;
+                archiveBtn.textContent=label;archiveBtn.title=label;archiveBtn.setAttribute('aria-label',label);
+            }
+            if(deleteBtn&&!this.isDeleting){
+                const label=`Excluir (${count})`;
+                deleteBtn.textContent=label;deleteBtn.title=label;deleteBtn.setAttribute('aria-label',label);
+            }
             const all=document.getElementById('bulk-select-all');
             if(all){all.checked=ids.length>0&&selected===ids.length;all.indeterminate=selected>0&&selected<ids.length;}
             for(const n of this.adapter.getConversations()){
@@ -2015,7 +2001,7 @@
         findSidebarHeading(regex){
             const items=Array.from(document.querySelectorAll('aside button,aside a,aside span,aside h2,aside h3,nav button,nav a,nav span,nav h2,nav h3,[role="navigation"] button,[role="navigation"] span'));
             return items.find(el=>{
-                if(el.closest('#bulk-controls-panel,#cbm-filter-section,[data-cbm-explore-menu="true"]'))return false;
+                if(el.closest('#bulk-controls-panel,#cbm-filter-section,#gm-compact-nav,[data-cbm-explore-menu="true"]'))return false;
                 const txt=this.normalizedText(el).replace(/[›>]/g,'').trim();
                 const rect=el.getBoundingClientRect();
                 return regex.test(txt)&&rect.left<420&&rect.width>0&&rect.height>0&&rect.height<85;
@@ -3297,6 +3283,132 @@
         }
     }
 
+
+    class GPTManagerCompactNav {
+        constructor(manager){
+            this.manager=manager;
+            this.newChatRow=null;this.exploreRow=null;
+            this.newChatAction=null;this.exploreAction=null;
+            this.node=null;
+            addStyle("\n/* GPT Manager Compact 0.13.0: mais histórico visível, ações acessíveis */\n#bulk-controls-panel.bulk-controls-panel-chatgpt{\n  margin:4px 6px 4px!important;padding:7px 9px!important;\n  border-radius:10px!important;gap:0!important;\n  box-shadow:none!important;\n}\n#bulk-controls-panel .gm-tools-toolbar{display:none!important}\n#bulk-controls-panel .gm-tools-body{display:flex!important;gap:6px!important}\n#bulk-controls-panel .gm-selection-drive-row{\n  display:flex!important;align-items:center!important;justify-content:space-between!important;\n  min-height:25px!important;gap:6px!important;padding:0!important;\n}\n#bulk-controls-panel .cbm-select-line{display:inline-flex!important;align-items:center!important;\n  font-weight:400!important;min-width:0!important;font-size:12px!important;gap:4px!important;\n}\n#bulk-controls-panel .gm-selection-drive-row #gpt-manager-drive-button{\n  display:inline-flex!important;align-items:center!important;justify-content:center!important;\n  flex:0 0 auto!important;margin:0!important;width:31px!important;height:28px!important;\n  min-height:28px!important;min-width:31px!important;padding:0!important;\n  border:1px solid var(--gm-border,#dedede)!important;border-radius:7px!important;\n  background:var(--gm-surface,#fff)!important;color:var(--gm-ink,#263445)!important;\n  font-size:0!important;line-height:0!important;position:relative!important;\n}\n#bulk-controls-panel .gm-selection-drive-row #gpt-manager-drive-button::before{\n  content:\"\";width:18px;height:18px;display:block;\n  background:currentColor;mask:center/contain no-repeat url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M8 3h8l6 11-4 7H5l-4-7L8 3Zm1.2 3L4.8 14h5.8l4.4-8H9.2Zm7.3 1-4.4 8h6.8l-2.4-8ZM5 17l1.2 2h11.5l1.2-2H5Z'/%3E%3C/svg%3E\");\n}\n#bulk-controls-panel .gm-selection-drive-row #gpt-manager-drive-button:not(:disabled):hover{\n  background:var(--gm-hover,#ededed)!important;\n}\n#bulk-controls-panel .cbm-actions{\n  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;\n}\n#bulk-controls-panel.bulk-controls-panel-chatgpt .cbm-actions .bulk-btn{\n  display:flex!important;align-items:center!important;justify-content:center!important;\n  padding:5px 4px!important;min-height:31px!important;height:31px!important;\n  font-size:0!important;line-height:0!important;gap:0!important;border-radius:7px!important;\n}\n#bulk-controls-panel.bulk-controls-panel-chatgpt .cbm-actions .bulk-btn::before{\n  width:17px!important;height:17px!important;flex:0 0 17px!important;\n  background-size:17px 17px!important;\n}\n#bulk-controls-panel .cbm-search-row{margin:0!important;gap:5px!important;}\n#bulk-controls-panel #cbm-filter-input{height:31px!important;min-height:31px!important;border-radius:8px!important;}\n#bulk-controls-panel #cbm-search-modes{\n  display:flex!important;justify-content:space-between!important;align-items:center!important;\n  gap:5px!important;padding:1px 0!important;min-height:21px!important;line-height:20px!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-option{\n  display:inline-flex!important;flex:1 1 0!important;min-width:0!important;align-items:center!important;\n  justify-content:flex-start!important;gap:5px!important;white-space:nowrap!important;\n  border:0!important;border-radius:4px!important;background:transparent!important;\n  font-size:11.5px!important;line-height:17px!important;font-weight:400!important;\n  padding:0 1px!important;min-height:19px!important;cursor:pointer!important;\n  color:var(--gm-ink,#222)!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-option:has(.cbm-mode-input:checked){\n  border:0!important;background:transparent!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-input,\n#bulk-controls-panel #bulk-select-all,\nnav .bulk-delete-checkbox,\n#cbm-filter-results .bulk-delete-checkbox{\n  appearance:none!important;-webkit-appearance:none!important;\n  position:static!important;opacity:1!important;z-index:auto!important;\n  display:inline-block!important;flex:0 0 16px!important;\n  box-sizing:border-box!important;width:16px!important;height:16px!important;\n  min-width:16px!important;min-height:16px!important;\n  margin:0!important;padding:0!important;\n  border:1.5px solid #777!important;border-radius:4px!important;\n  background-color:transparent!important;background-image:none!important;\n  cursor:pointer!important;vertical-align:middle!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-input:checked,\n#bulk-controls-panel #bulk-select-all:checked,\nnav .bulk-delete-checkbox:checked,\n#cbm-filter-results .bulk-delete-checkbox:checked{\n  border-color:#333!important;background-color:#333!important;\n  background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8l3 3 7-7' stroke='%23fff' fill='none' stroke-width='2'/%3E%3C/svg%3E\")!important;\n  background-repeat:no-repeat!important;background-size:12px 12px!important;\n  background-position:center!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-input:focus-visible,\n#bulk-controls-panel #bulk-select-all:focus-visible,\nnav .bulk-delete-checkbox:focus-visible{\n  outline:2px solid var(--gm-blue,#2872e2)!important;outline-offset:2px!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-indicator{display:none!important}\n#bulk-controls-panel .cbm-status-line{\n  border-top:1px solid var(--gm-border,#ddd)!important;\n  margin-top:1px!important;min-height:20px!important;\n  padding:5px 0 0!important;gap:5px!important;\n}\n#bulk-controls-panel .bulk-status{font-size:11px!important;line-height:15px!important;}\n#gm-compact-nav{\n display:inline-flex!important;flex:0 0 auto!important;align-items:center!important;\n gap:2px!important;margin-left:auto!important;margin-right:0!important;\n position:relative!important;z-index:11!important;\n}\n#gm-compact-nav button{\n display:inline-flex!important;align-items:center!important;justify-content:center!important;\n width:28px!important;height:29px!important;min-width:28px!important;min-height:29px!important;\n border:0!important;border-radius:7px!important;background:transparent!important;\n color:var(--gm-ink,#24252b)!important;cursor:pointer!important;padding:5px!important;\n}\n#gm-compact-nav button:hover{background:var(--gm-hover,#e9ebed)!important}\n#gm-compact-nav button:focus-visible{outline:2px solid var(--gm-blue,#2872e2)!important;outline-offset:1px!important}\n#gm-compact-nav svg{width:17px!important;height:17px!important;stroke:currentColor!important;fill:none!important;stroke-width:1.8!important}\n#gm-compact-nav .gm-visually-hidden{\n position:absolute!important;width:1px!important;height:1px!important;padding:0!important;\n margin:-1px!important;overflow:hidden!important;clip-path:inset(50%)!important;\n white-space:nowrap!important;border:0!important;\n}\n.gm-original-new-chat-hidden,.gm-original-explore-hidden{display:none!important}\nnav .cbm-compact-heading{min-height:26px!important;height:26px!important;max-height:26px!important}\n#gpt-manager-groups{margin:3px 0!important}\n#gpt-manager-groups .gm-groups-header{min-height:26px!important;height:26px!important;max-height:26px!important}\n#bulk-controls-panel .cbm-icon-btn{height:26px!important;width:26px!important;}\n");
+            this.scan();
+            this.interval=setInterval(()=>this.scan(),1800);
+        }
+        normalized(element){
+            return String(element?.getAttribute?.('aria-label')||
+                element?.getAttribute?.('title')||element?.textContent||'')
+                .replace(/\s+/g,' ').trim();
+        }
+        logoHeader(){
+            const el=Array.from(document.querySelectorAll('button,span,a'))
+                .filter(x=>x.isConnected&&x.textContent?.trim()==='ChatGPT'&&
+                    !x.closest('#bulk-controls-panel,#gm-compact-nav'))
+                .find(x=>{
+                    const b=x.getBoundingClientRect();
+                    return b.left>=0&&b.left<180&&b.top>=0&&b.top<65&&b.width>30&&b.height>10;
+                });
+            if(!el)return null;
+            for(let p=el.parentElement,n=0;p&&n<5;p=p.parentElement,n++){
+                const b=p.getBoundingClientRect();
+                if(b.width>=220&&b.width<=490&&b.height>=30&&b.height<=76&&
+                    b.top>=0&&b.top<52&&p.tagName!=='NAV'&&p.tagName!=='ASIDE'){
+                    const css=getComputedStyle(p);
+                    if(/flex|grid/.test(css.display))return p;
+                }
+            }
+            return null;
+        }
+        sourceAction(row,type){
+            const pat=type==='new'?/^(?:Novo chat|New chat)$/i:
+                /^(?:(?:[.]{3}|…)\s*)?(?:Explorar|Explore)$/i;
+            const nodes=[row,...Array.from(row?.querySelectorAll?.('a,button,[role="button"]')||[])];
+            return nodes.find(n=>pat.test(this.normalized(n))) ||
+                nodes.find(n=>pat.test(String(n.textContent||'').trim())) || null;
+        }
+        safeToHide(row){
+            const panel=document.getElementById('bulk-controls-panel');
+            if(!row?.isConnected||!panel?.isConnected||row.contains(panel)||
+               row.contains(document.getElementById('gpt-manager-groups'))||
+               row.contains(document.getElementById('cbm-filter-section')))return false;
+            const b=row.getBoundingClientRect();
+            return b.width>30&&b.width<490&&b.height>12&&b.height<90;
+        }
+        getNewChat(){
+            if(this.newChatRow?.isConnected&&this.newChatAction?.isConnected)
+                return {row:this.newChatRow,action:this.newChatAction};
+            const row=this.manager.findFixedNewChatRow();
+            const action=row&&this.sourceAction(row,'new');
+            if(!row||!action)return null;
+            return {row,action};
+        }
+        getExplore(){
+            if(this.exploreRow?.isConnected&&this.exploreAction?.isConnected)
+                return {row:this.exploreRow,action:this.exploreAction};
+            const original=this.manager.findSidebarHeading(/^(?:(?:[.]{3}|…)\s*)?(?:Explorar|Explore)$/i);
+            const row=this.manager.outerHeadingRow(original);
+            const action=row&&this.sourceAction(row,'explore');
+            if(!row||!action)return null;
+            return {row,action};
+        }
+        makeProxy(kind){
+            const button=document.createElement('button');
+            button.type='button';
+            button.className=kind==='new'?'gm-new-chat-proxy':'gm-explore-proxy';
+            const title=kind==='new'?'Novo chat':'Explorar';
+            button.title=title;button.setAttribute('aria-label',title);
+            const svg=kind==='new'
+                ?'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="16" height="16" rx="3"/><path d="M9 15L20 4M15 4h5v5"/></svg>'
+                :'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>';
+            button.innerHTML=svg;
+            button.addEventListener('click',()=>{
+                const item=kind==='new'?this.getNewChat():this.getExplore();
+                if(!item?.action?.isConnected){
+                    this.scan();return;
+                }
+                item.action.click();
+            });
+            return button;
+        }
+        scan(){
+            try{
+                const target=this.logoHeader();
+                if(!target)return;
+                let holder=document.getElementById('gm-compact-nav');
+                if(!holder){
+                    holder=document.createElement('div');holder.id='gm-compact-nav';
+                    holder.setAttribute('role','group');
+                    holder.setAttribute('aria-label','Acesso rápido');
+                    holder.append(this.makeProxy('new'),this.makeProxy('explore'));
+                }
+                if(holder.parentElement!==target)target.append(holder);
+                this.node=holder;
+                const newChat=this.getNewChat();
+                const explore=this.getExplore();
+                const newButton=holder.querySelector('.gm-new-chat-proxy');
+                const exploreButton=holder.querySelector('.gm-explore-proxy');
+                const panel=document.getElementById('bulk-controls-panel');
+                if(newChat&&this.safeToHide(newChat.row)&&panel){
+                    if(panel.parentElement===newChat.row.parentElement &&
+                       panel.previousElementSibling===newChat.row){
+                        this.newChatRow=newChat.row;this.newChatAction=newChat.action;
+                        newChat.row.classList.add('gm-original-new-chat-hidden');
+                        newButton.hidden=false;
+                    }else{
+                        newChat.row.classList.remove('gm-original-new-chat-hidden');
+                        newButton.hidden=true;
+                    }
+                }else if(!this.newChatRow?.isConnected)newButton.hidden=true;
+                if(explore&&this.safeToHide(explore.row)){
+                    this.exploreRow=explore.row;this.exploreAction=explore.action;
+                    explore.row.classList.add('gm-original-explore-hidden');
+                    exploreButton.hidden=false;
+                }else if(!this.exploreRow?.isConnected)exploreButton.hidden=true;
+            }catch(error){
+                warn('GPT Manager: atalho compacto indisponível',error);
+            }
+        }
+    }
+
     class ChatGPTSidebarLayout {
         constructor() {
             this.toolLabels=['Agendado','Biblioteca','Plugins','Mapas'];
@@ -3561,6 +3673,7 @@
             window.__aiChatNativeTagsMenu = new ChatGPTNativeTagsMenu(window.__aiChatBulkManager);
             window.__aiChatPreviewCopy = new ChatGPTPreviewCopy();
             window.__aiChatSidebarLayout = new ChatGPTSidebarLayout();
+            window.__gptManagerCompactNav = new GPTManagerCompactNav(window.__aiChatBulkManager);
         }
         log('initialized');
     };
