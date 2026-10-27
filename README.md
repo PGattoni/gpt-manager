@@ -15,7 +15,7 @@ Abra **https://pgattoni.github.io/gpt-manager/instalar.html** e clique em **Inst
 
 ## Versão publicada
 
-**v0.13.1:** conexão à conta Google por página auxiliar OAuth, cópia e sincronização em `appDataFolder`, união inicial de registros, importação/exportação JSON e sincronização automática opcional.
+**v0.13.2:** conexão à conta Google por página auxiliar OAuth, cópia e sincronização em `appDataFolder`, união inicial de registros, importação/exportação JSON e sincronização automática opcional.
 
 ## Atualização após a renomeação do repositório
 
@@ -51,15 +51,15 @@ A seção **Grupos** aparece logo abaixo de Explorar. Clique em **+** para criar
 
 A IA para sugerir grupos e tags está planejada para a próxima etapa; não está incluída nesta versão. Faça backup JSON antes de atualizar.
 
-### Interface v0.13.1
+### Interface v0.13.2
 
 O título **Grupos** acompanha a tipografia e o alinhamento da seção nativa **Fixados**. O cabeçalho não exibe contagem e não há frase de ajuda quando a lista está vazia. Criação e edição usam uma janela integrada, com campo de nome e paleta visual de cores. A exclusão exige confirmação no mesmo diálogo e não elimina conversas.
 
-### Correção v0.13.1
+### Correção v0.13.2
 
 A caixa de ferramentas e a organização de Explorar funcionam mesmo quando **Recentes** está recolhido. Links da seção **Grupos** não são confundidos com os links nativos do histórico ao escolher o ponto de inserção do painel.
 
-## Interface unificada v0.13.1
+## Interface unificada v0.13.2
 
 Redesenho visual do GPT Manager inspirado no protótipo discutido, adaptado à barra lateral existente do ChatGPT. Ferramentas ganham cabeçalho recolhível e controles padronizados, filtros em chips e ações consistentes. Grupos, diálogos de tags/cores, Drive e menus próprios usam o mesmo sistema de cor, borda e espaçamento.
 
@@ -67,11 +67,11 @@ Redesenho visual do GPT Manager inspirado no protótipo discutido, adaptado à b
 
 As ferramentas permanecem funcionais mesmo recolhidas. As seções nativas de ChatGPT não são substituídas e nenhum dado de conversas é enviado adicionalmente ao Drive.
 
-### Refinamento v0.13.1
+### Refinamento v0.13.2
 
 A caixa de ferramentas também verifica se a linha de **Novo chat** está em um layout horizontal; nesse caso é inserida abaixo do contêiner de ícones, evitando disputar largura com os botões nativos. As ações **Arquivar**, **Excluir** e **Parar** recebem ícones SVG consistentes, sem modificar os seus eventos ou permissões.
 
-## Interface compacta v0.13.1
+## Interface compacta v0.13.2
 
 - Primeira linha da caixa: **Selecionar todas** e botão **Drive** (ícone).
 - Segunda linha: **Arquivar**, **Excluir**, **Parar** somente com ícones. Os nomes e contadores permanecem acessíveis por tooltip e tecnologias assistivas.
@@ -82,6 +82,16 @@ A caixa de ferramentas também verifica se a linha de **Novo chat** está em um 
 
 **Teste após atualização:** confirme as operações no Chrome. Mudanças do DOM nativo do ChatGPT podem exigir ajuste dos atalhos compactos. Os dados do Drive, grupos, tags e proteções não foram modificados.
 
-### v0.13.1
+### v0.13.2
 
 Correção de visibilidade dos atalhos superiores indisponíveis e nome acessível para o botão Drive.
+
+
+### Interface v0.13.2
+
+- **Selecionar todas** permanece sozinho na primeira linha. Arquivar, Excluir, Parar, Google Drive (logotipo multicolorido) e Filtro ocupam a segunda linha, apenas com ícones e nomes acessíveis por tooltip.
+- O campo de busca e as opções **Nome, Conteúdo e Tags** aparecem em um popup acionado pelo ícone Filtro. O popup fecha após aplicar a busca, ao clicar fora ou pressionar Esc, sem desativar o filtro.
+- O ícone do filtro indica quando há uma pesquisa ativa, e a contagem de interações continua visível no painel.
+- Aumentada apenas a distância **horizontal** entre checkbox e nome das conversas; linhas continuam compactas verticalmente.
+
+A sincronização Google Drive, os grupos, as proteções e o histórico não sofreram alteração de dados.

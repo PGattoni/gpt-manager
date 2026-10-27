@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         GPT Manager v0.13.1
-// @name:zh-CN   GPT Manager v0.13.1
+// @name         GPT Manager v0.13.2
+// @name:zh-CN   GPT Manager v0.13.2
 // @namespace    http://tampermonkey.net/
-// @version      0.13.1
+// @version      0.13.2
 // @description  Bulk archive or delete ChatGPT and Gemini conversations
 // @description:zh-CN 批量归档或删除 ChatGPT 和 Gemini 的历史会话
 // @author       Luo Jiahao
@@ -747,7 +747,7 @@
             if(this.reportPanel?.isConnected){this.refresh();return;}
             const el=document.createElement('div');el.id='cbm-diag-modal';
             el.innerHTML=`
-                <div class="cbm-diag-top"><h2>GPT Manager v0.13.1 | Diagnóstico</h2>
+                <div class="cbm-diag-top"><h2>GPT Manager v0.13.2 | Diagnóstico</h2>
                     <button type="button" id="cbm-diag-close" aria-label="Fechar diagnóstico">Fechar ×</button></div>
                 <p>Abra a janela lateral do TXT, tente copiar o texto e, após a falha, clique em Atualizar.
                    O relatório contém apenas estruturas e contagens, não o texto ou dados de autenticação.</p>
@@ -909,8 +909,10 @@
         updateUI(){
             const button=document.getElementById('gpt-manager-drive-button');
             if(button){
-                button.textContent=this.busy?'Drive ⟳':(this.connected()?'Drive ✓':'Drive');
-                button.title=this.lastMessage;
+                const text=this.busy?'Drive: sincronizando':(this.connected()?'Drive: conectado':'Drive: conectar');
+                button.setAttribute('aria-label',text);
+                button.setAttribute('aria-busy',String(this.busy));
+                button.title=text+'. '+this.lastMessage;
                 button.disabled=this.busy;
             }
             const state=document.getElementById('gpt-manager-drive-state');
@@ -1679,7 +1681,44 @@
             spinner.setAttribute('role','img');spinner.setAttribute('aria-label','Operação em andamento');spinner.hidden=true;
             statusRow.append(spinner,status);
             toolsBody.append(selectRow,actions);
+            let filterPopup=null;
+            let filterButton=null;
+            const closeFilterPopup=()=>{
+                if(filterPopup){filterPopup.hidden=true;filterButton?.setAttribute('aria-expanded','false');}
+            };
             if(this.isChatGPT) {
+                filterPopup=document.createElement('div');
+                filterPopup.id='gm-filter-popup';
+                filterPopup.hidden=true;
+                filterPopup.setAttribute('role','group');
+                filterPopup.setAttribute('aria-label','Filtro de interações');
+                filterButton=document.createElement('button');
+                filterButton.type='button';filterButton.id='gm-filter-toggle';
+                filterButton.className='bulk-btn';
+                filterButton.title='Filtrar interações';
+                filterButton.setAttribute('aria-label','Abrir filtro de interações');
+                filterButton.setAttribute('aria-controls','gm-filter-popup');
+                filterButton.setAttribute('aria-expanded','false');
+                filterButton.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16l-6.5 7.5v5.5l-3 2v-7.5L4 5Z"/></svg>';
+                filterButton.addEventListener('click',event=>{
+                    event.stopPropagation();
+                    const show=filterPopup.hidden;
+                    filterPopup.hidden=!show;
+                    filterButton.setAttribute('aria-expanded',String(show));
+                    if(show)requestAnimationFrame(()=>filterPopup.querySelector('#cbm-filter-input')?.focus());
+                });
+                filterPopup.addEventListener('click',event=>event.stopPropagation());
+                document.addEventListener('pointerdown',event=>{
+                    if(filterPopup?.hidden || !filterPopup?.isConnected)return;
+                    if(!filterPopup.contains(event.target)&&event.target!==filterButton&&!filterButton.contains(event.target))
+                        closeFilterPopup();
+                });
+                document.addEventListener('keydown',event=>{
+                    if(event.key==='Escape'&&!filterPopup.hidden){
+                        event.preventDefault();closeFilterPopup();filterButton.focus();
+                    }
+                });
+                actions.append(filterButton);
                 const searchRow=document.createElement('form');searchRow.className='cbm-search-row';
                 searchRow.setAttribute('role','search');
                 const input=document.createElement('input');input.type='text';input.id='cbm-filter-input';
@@ -1691,9 +1730,9 @@
                 const clear=document.createElement('button');clear.type='button';clear.id='cbm-clear-filter';clear.className='cbm-icon-btn';clear.title='Limpar filtro';clear.setAttribute('aria-label','Limpar filtro');clear.hidden=true;
                 clear.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>';
                 searchRow.append(input,searchBtn,clear);
-                searchRow.addEventListener('submit',e=>{e.preventDefault();this.applyFilter(input.value);});
+                searchRow.addEventListener('submit',e=>{e.preventDefault();this.applyFilter(input.value);closeFilterPopup();});
                 clear.addEventListener('click',()=>{input.value='';this.applyFilter('');input.focus();});
-                toolsBody.append(searchRow);
+                filterPopup.append(searchRow);
                 const modes=document.createElement('div');modes.id='cbm-search-modes';
                 for(const [key,name] of [['name','Nome'],['content','Conteúdo'],['tags','Tags']]){
                     const label=document.createElement('label');label.className='cbm-mode-option';
@@ -1711,17 +1750,19 @@
                     });
                     label.append(check,document.createTextNode(name));modes.appendChild(label);
                 }
-                toolsBody.append(modes);
+                filterPopup.append(modes);
+                toolsBody.append(filterPopup);
             }
             if(this.drive){
                 const driveBtn=document.createElement('button');
                 driveBtn.type='button';driveBtn.id='gpt-manager-drive-button';
-                driveBtn.className='bulk-btn';driveBtn.textContent='Drive';
+                driveBtn.className='bulk-btn gm-drive-action';
+                driveBtn.innerHTML='<svg viewBox="0 0 87 78" aria-hidden="true" focusable="false" style="width:19px;height:18px"><path fill="#00875A" d="M29 0h23l35 60H63z"/><path fill="#2684FC" d="M12 59h75L75 78H0z"/><path fill="#FFBA00" d="M29 0h23L18 60H0z"/></svg>';
                 driveBtn.title='Sincronizar tags, cores, grupos e proteções no Google Drive';
                 driveBtn.setAttribute('aria-label','Google Drive');
                 driveBtn.style.cssText='margin-left:auto;white-space:nowrap;padding:3px 7px;';
                 driveBtn.addEventListener('click',()=>this.drive.showDialog());
-                selectRow.appendChild(driveBtn);
+                actions.appendChild(driveBtn);
             }
             toolsBody.append(statusRow);
             if(this.isChatGPT && fixedNewChatRow && fixedNewChatRow.parentElement){
@@ -1749,6 +1790,7 @@
             stopBtn.addEventListener('click',()=>{this.stopRequested=true;this.setStatus('Parando…');});
             this.updateBusyIndicator();
             this.drive?.updateUI();
+            if(filterButton)filterButton.classList.toggle('gm-filter-active',this.filterActive);
             this.scheduleRender();
         }
 
@@ -1963,6 +2005,9 @@
             const clear=document.getElementById('cbm-clear-filter');
             if(clear)clear.hidden=!this.filterActive;
             document.body.classList.toggle('cbm-filter-active',this.filterActive);
+            document.getElementById('gm-filter-toggle')?.classList.toggle('gm-filter-active',this.filterActive);
+            const filterIcon=document.getElementById('gm-filter-toggle');
+            if(filterIcon)filterIcon.title=this.filterActive?'Filtro ativo: '+this.filterTerm:'Filtrar interações';
             if(!this.filterActive){
                 document.querySelectorAll('.cbm-filter-hide').forEach(el=>el.classList.remove('cbm-filter-hide'));
                 document.getElementById('cbm-filter-section')?.remove();
@@ -3292,6 +3337,7 @@
             this.newChatAction=null;this.exploreAction=null;
             this.node=null;
             addStyle("\n/* GPT Manager Compact 0.13.0: mais histórico visível, ações acessíveis */\n#bulk-controls-panel.bulk-controls-panel-chatgpt{\n  margin:4px 6px 4px!important;padding:7px 9px!important;\n  border-radius:10px!important;gap:0!important;\n  box-shadow:none!important;\n}\n#bulk-controls-panel .gm-tools-toolbar{display:none!important}\n#bulk-controls-panel .gm-tools-body{display:flex!important;gap:6px!important}\n#bulk-controls-panel .gm-selection-drive-row{\n  display:flex!important;align-items:center!important;justify-content:space-between!important;\n  min-height:25px!important;gap:6px!important;padding:0!important;\n}\n#bulk-controls-panel .cbm-select-line{display:inline-flex!important;align-items:center!important;\n  font-weight:400!important;min-width:0!important;font-size:12px!important;gap:4px!important;\n}\n#bulk-controls-panel .gm-selection-drive-row #gpt-manager-drive-button{\n  display:inline-flex!important;align-items:center!important;justify-content:center!important;\n  flex:0 0 auto!important;margin:0!important;width:31px!important;height:28px!important;\n  min-height:28px!important;min-width:31px!important;padding:0!important;\n  border:1px solid var(--gm-border,#dedede)!important;border-radius:7px!important;\n  background:var(--gm-surface,#fff)!important;color:var(--gm-ink,#263445)!important;\n  font-size:0!important;line-height:0!important;position:relative!important;\n}\n#bulk-controls-panel .gm-selection-drive-row #gpt-manager-drive-button::before{\n  content:\"\";width:18px;height:18px;display:block;\n  background:currentColor;mask:center/contain no-repeat url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M8 3h8l6 11-4 7H5l-4-7L8 3Zm1.2 3L4.8 14h5.8l4.4-8H9.2Zm7.3 1-4.4 8h6.8l-2.4-8ZM5 17l1.2 2h11.5l1.2-2H5Z'/%3E%3C/svg%3E\");\n}\n#bulk-controls-panel .gm-selection-drive-row #gpt-manager-drive-button:not(:disabled):hover{\n  background:var(--gm-hover,#ededed)!important;\n}\n#bulk-controls-panel .cbm-actions{\n  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;\n}\n#bulk-controls-panel.bulk-controls-panel-chatgpt .cbm-actions .bulk-btn{\n  display:flex!important;align-items:center!important;justify-content:center!important;\n  padding:5px 4px!important;min-height:31px!important;height:31px!important;\n  font-size:0!important;line-height:0!important;gap:0!important;border-radius:7px!important;\n}\n#bulk-controls-panel.bulk-controls-panel-chatgpt .cbm-actions .bulk-btn::before{\n  width:17px!important;height:17px!important;flex:0 0 17px!important;\n  background-size:17px 17px!important;\n}\n#bulk-controls-panel .cbm-search-row{margin:0!important;gap:5px!important;}\n#bulk-controls-panel #cbm-filter-input{height:31px!important;min-height:31px!important;border-radius:8px!important;}\n#bulk-controls-panel #cbm-search-modes{\n  display:flex!important;justify-content:space-between!important;align-items:center!important;\n  gap:5px!important;padding:1px 0!important;min-height:21px!important;line-height:20px!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-option{\n  display:inline-flex!important;flex:1 1 0!important;min-width:0!important;align-items:center!important;\n  justify-content:flex-start!important;gap:5px!important;white-space:nowrap!important;\n  border:0!important;border-radius:4px!important;background:transparent!important;\n  font-size:11.5px!important;line-height:17px!important;font-weight:400!important;\n  padding:0 1px!important;min-height:19px!important;cursor:pointer!important;\n  color:var(--gm-ink,#222)!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-option:has(.cbm-mode-input:checked){\n  border:0!important;background:transparent!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-input,\n#bulk-controls-panel #bulk-select-all,\nnav .bulk-delete-checkbox,\n#cbm-filter-results .bulk-delete-checkbox{\n  appearance:none!important;-webkit-appearance:none!important;\n  position:static!important;opacity:1!important;z-index:auto!important;\n  display:inline-block!important;flex:0 0 16px!important;\n  box-sizing:border-box!important;width:16px!important;height:16px!important;\n  min-width:16px!important;min-height:16px!important;\n  margin:0!important;padding:0!important;\n  border:1.5px solid #777!important;border-radius:4px!important;\n  background-color:transparent!important;background-image:none!important;\n  cursor:pointer!important;vertical-align:middle!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-input:checked,\n#bulk-controls-panel #bulk-select-all:checked,\nnav .bulk-delete-checkbox:checked,\n#cbm-filter-results .bulk-delete-checkbox:checked{\n  border-color:#333!important;background-color:#333!important;\n  background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8l3 3 7-7' stroke='%23fff' fill='none' stroke-width='2'/%3E%3C/svg%3E\")!important;\n  background-repeat:no-repeat!important;background-size:12px 12px!important;\n  background-position:center!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-input:focus-visible,\n#bulk-controls-panel #bulk-select-all:focus-visible,\nnav .bulk-delete-checkbox:focus-visible{\n  outline:2px solid var(--gm-blue,#2872e2)!important;outline-offset:2px!important;\n}\n#bulk-controls-panel #cbm-search-modes .cbm-mode-indicator{display:none!important}\n#bulk-controls-panel .cbm-status-line{\n  border-top:1px solid var(--gm-border,#ddd)!important;\n  margin-top:1px!important;min-height:20px!important;\n  padding:5px 0 0!important;gap:5px!important;\n}\n#bulk-controls-panel .bulk-status{font-size:11px!important;line-height:15px!important;}\n#gm-compact-nav{\n display:inline-flex!important;flex:0 0 auto!important;align-items:center!important;\n gap:2px!important;margin-left:auto!important;margin-right:0!important;\n position:relative!important;z-index:11!important;\n}\n#gm-compact-nav button{\n display:inline-flex!important;align-items:center!important;justify-content:center!important;\n width:28px!important;height:29px!important;min-width:28px!important;min-height:29px!important;\n border:0!important;border-radius:7px!important;background:transparent!important;\n color:var(--gm-ink,#24252b)!important;cursor:pointer!important;padding:5px!important;\n}\n#gm-compact-nav button[hidden]{display:none!important}\n#gm-compact-nav button:hover{background:var(--gm-hover,#e9ebed)!important}\n#gm-compact-nav button:focus-visible{outline:2px solid var(--gm-blue,#2872e2)!important;outline-offset:1px!important}\n#gm-compact-nav svg{width:17px!important;height:17px!important;stroke:currentColor!important;fill:none!important;stroke-width:1.8!important}\n#gm-compact-nav .gm-visually-hidden{\n position:absolute!important;width:1px!important;height:1px!important;padding:0!important;\n margin:-1px!important;overflow:hidden!important;clip-path:inset(50%)!important;\n white-space:nowrap!important;border:0!important;\n}\n.gm-original-new-chat-hidden,.gm-original-explore-hidden{display:none!important}\nnav .cbm-compact-heading{min-height:26px!important;height:26px!important;max-height:26px!important}\n#gpt-manager-groups{margin:3px 0!important}\n#gpt-manager-groups .gm-groups-header{min-height:26px!important;height:26px!important;max-height:26px!important}\n#bulk-controls-panel .cbm-icon-btn{height:26px!important;width:26px!important;}\n");
+            addStyle("\n/* GPT Manager v0.13.2 | 5 ações com ícones, filtro popup e compactação vertical */\n#bulk-controls-panel.bulk-controls-panel-chatgpt{\n padding:6px 8px!important;margin:3px 6px 4px!important;\n overflow:visible!important;position:sticky!important;\n}\n#bulk-controls-panel.gm-tools-outside-scroll{position:relative!important}\n#bulk-controls-panel .gm-tools-body{gap:6px!important}\n#bulk-controls-panel .gm-selection-drive-row{\n min-height:21px!important;height:21px!important;display:flex!important;\n align-items:center!important;justify-content:flex-start!important;margin:0!important;\n}\n#bulk-controls-panel .gm-selection-drive-row .cbm-select-line{\n display:flex!important;align-items:center!important;gap:7px!important;\n min-height:20px!important;margin:0!important;font-size:12px!important;\n}\n#bulk-controls-panel .cbm-actions{\n display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;\n gap:6px!important;align-items:center!important;\n}\n#bulk-controls-panel.bulk-controls-panel-chatgpt .cbm-actions .bulk-btn{\n display:inline-flex!important;align-items:center!important;justify-content:center!important;\n height:32px!important;min-height:32px!important;width:100%!important;min-width:0!important;\n padding:5px!important;font-size:0!important;line-height:0!important;\n border-radius:7px!important;box-sizing:border-box!important;\n}\n#bulk-controls-panel .cbm-actions #gpt-manager-drive-button{\n display:inline-flex!important;position:relative!important;align-items:center!important;\n justify-content:center!important;width:100%!important;height:32px!important;\n min-height:32px!important;min-width:0!important;margin:0!important;\n padding:5px!important;line-height:0!important;font-size:0!important;\n color:var(--gm-ink,#242c39)!important;background:var(--gm-surface,#fff)!important;\n border:1px solid var(--gm-border,#d8d8d8)!important;\n}\n#bulk-controls-panel .cbm-actions #gpt-manager-drive-button::before{\n display:none!important;content:none!important;\n}\n#bulk-controls-panel .cbm-actions #gpt-manager-drive-button svg{\n display:block!important;width:20px!important;height:19px!important;\n flex:0 0 20px!important;\n}\n#bulk-controls-panel .cbm-actions #gpt-manager-drive-button[aria-busy=\"true\"]::after{\n content:\"\";position:absolute;right:3px;top:3px;width:5px;height:5px;\n border-radius:50%;background:#2684fc;\n}\n#bulk-controls-panel .cbm-actions #gm-filter-toggle{\n display:flex!important;position:relative!important;align-items:center!important;\n justify-content:center!important;\n}\n#bulk-controls-panel .cbm-actions #gm-filter-toggle::before{display:none!important;content:none!important}\n#bulk-controls-panel .cbm-actions #gm-filter-toggle svg{\n display:block!important;width:17px!important;height:17px!important;\n flex:0 0 17px!important;fill:none!important;\n stroke:currentColor!important;stroke-width:1.8!important;stroke-linecap:round;stroke-linejoin:round;\n}\n#bulk-controls-panel .cbm-actions #gm-filter-toggle.gm-filter-active{\n color:var(--gm-blue,#2872e2)!important;\n border-color:rgba(40,114,226,.6)!important;background:rgba(40,114,226,.08)!important;\n}\n#bulk-controls-panel .cbm-actions #gm-filter-toggle.gm-filter-active::after{\n content:\"\";position:absolute;right:3px;top:3px;width:5px;height:5px;\n border-radius:50%;background:var(--gm-blue,#2872e2);\n}\n#bulk-controls-panel #gm-filter-popup{\n position:absolute!important;z-index:999!important;\n top:calc(100% - 2px)!important;left:4px!important;right:4px!important;\n margin:0!important;padding:13px 11px!important;\n background:var(--gm-surface,#fff)!important;\n color:var(--gm-ink,#222)!important;\n border:1px solid var(--gm-border,#ddd)!important;\n border-radius:11px!important;\n box-shadow:0 12px 32px rgba(0,0,0,.15)!important;\n display:flex!important;flex-direction:column!important;gap:10px!important;\n box-sizing:border-box!important;\n}\n#bulk-controls-panel #gm-filter-popup[hidden]{display:none!important}\n#bulk-controls-panel #gm-filter-popup .cbm-search-row{display:flex!important}\n#bulk-controls-panel #gm-filter-popup #cbm-search-modes{display:flex!important;gap:12px!important;}\n#bulk-controls-panel #gm-filter-popup #cbm-search-modes .cbm-mode-option{\n flex:1 1 0!important;display:inline-flex!important;justify-content:flex-start!important;\n align-items:center!important;gap:5px!important;padding:2px 1px!important;\n font-size:12px!important;min-width:0!important;\n}\n#bulk-controls-panel .cbm-status-line{\n margin-top:0!important;padding:4px 0 0!important;min-height:17px!important;\n border-top:1px solid var(--gm-border,#ddd)!important;\n}\n/* Distância HORIZONTAL entre seleção e título, sem aumentar a altura da linha. */\nnav a[href*=\"/c/\"]:has(> input.bulk-delete-checkbox){\n display:flex!important;align-items:center!important;column-gap:9px!important;\n height:27px!important;min-height:27px!important;max-height:27px!important;\n padding-top:0!important;padding-bottom:0!important;box-sizing:border-box!important;\n}\nnav a[href*=\"/c/\"] > input.bulk-delete-checkbox{\n flex:0 0 16px!important;margin:0!important;\n margin-right:2px!important;position:static!important;left:auto!important;top:auto!important;\n}\nnav a[href*=\"/c/\"] > input.bulk-delete-checkbox + *{\n min-width:0!important;\n}\n#cbm-filter-results .cbm-result-row{\n column-gap:9px!important;min-height:27px!important;height:27px!important;\n}\n/* Evita que checkboxes invisíveis de outras versões permaneçam ocupando espaço. */\n#bulk-controls-panel #gm-filter-popup[hidden] *{pointer-events:none}\n");
             this.scan();
             this.interval=setInterval(()=>this.scan(),1800);
         }
